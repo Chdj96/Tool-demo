@@ -30,7 +30,7 @@ def load_image(image_path, image_url=None, caption=""):
 
 # --- Logo Loading ---
 logo = load_image(
-    image_path=os.path.join("Images", "Logo.jpg"),
+    image_path=os.path.join("Images", "Logo"),
     image_url="https://raw.githubusercontent.com/yourusername/yourrepo/main/Images/Logo.jpg"
 )
 
@@ -49,18 +49,11 @@ st.write(
 
 # --- Main Image Loading ---
 main_image = load_image(
-    image_path=os.path.join("Images", "clean16.jpg"),  # Note: corrected from clean1s.jpg
+    image_path=os.path.join("Images", "clean16"),  # Note: corrected from clean1s.jpg
     image_url="https://raw.githubusercontent.com/yourusername/yourrepo/main/Images/clean16.jpg"
 )
 
-if main_image:
-    st.image(main_image, 
-             caption="Nachhaltigkeit messbar machen", 
-             use_column_width=True)
-else:
-    st.warning("Main content image not available")
-    # Optional: Add placeholder image
-    # st.image("placeholder.jpg")
+
 
 # Footer
 st.markdown("---")
