@@ -5,7 +5,7 @@ from PIL import Image
 st.set_page_config(page_title="90 Green", layout="wide")
 
 # Load and display the company logo at the top of the sidebar
-logo_path = "Logo.jpg"  # Use relative path
+logo_path = "images/Logo.jpg"  # Corrected relative path
 
 try:
     logo = Image.open(logo_path)
@@ -27,7 +27,7 @@ st.write(
 )
 
 # Load and display the main image
-image_path = "clean16.jpg"  # Use relative path
+image_path = "images/clean16.jpg"  # Corrected relative path
 
 try:
     image = Image.open(image_path)
