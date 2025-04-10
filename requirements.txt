@@ -1,17 +1,10 @@
-import streamlit as st
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import io
-import tempfile
-import time
-import os
-import gc
-from datetime import datetime, timedelta
-from streamlit_folium import folium_static
-import folium
-from PIL import Image
-import requests
-import gdown
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+streamlit==1.32.2
+numpy==1.26.4
+pandas==2.2.1
+matplotlib==3.8.3
+folium==0.16.0
+streamlit-folium==0.18.0
+Pillow==10.3.0
+requests==2.31.0
+gdown==5.1.0
+selenium==4.19.0
