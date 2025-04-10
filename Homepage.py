@@ -1,15 +1,15 @@
 import streamlit as st
-from PIL import Image  # Import Pillow to handle images
+from PIL import Image
 
 # Set up page configuration
 st.set_page_config(page_title="90 Green", layout="wide")
 
 # Load and display the company logo at the top of the sidebar
-logo_path = r"D:\chrf\pythonProject1\tool\Logo.jpg"  # Adjust the path accordingly
+logo_path = "Logo.jpg"  # Use relative path
 
 try:
-    logo = Image.open(logo_path)  # Open logo image
-    st.sidebar.image(logo, use_container_width=True)  # Ensure it stays at the top
+    logo = Image.open(logo_path)
+    st.sidebar.image(logo, use_container_width=True)
 except FileNotFoundError:
     st.sidebar.error("⚠️ Logo not found. Please check the file path.")
 except Exception as e:
@@ -26,8 +26,8 @@ st.write(
     "wir den Wandel hin zu sauberer Luft und klimafreundlichen Städten voran."
 )
 
-# 📌 Load and display the main image
-image_path = r"D:\chrf\pythonProject1\tool\Kopie von clean16.jpg"
+# Load and display the main image
+image_path = "clean16.jpg"  # Use relative path
 
 try:
     image = Image.open(image_path)
