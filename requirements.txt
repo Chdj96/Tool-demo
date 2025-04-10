@@ -1,7 +1,13 @@
-streamlit
-numpy
-pandas
-matplotlib
-folium
-streamlit_folium
-selenium
+import streamlit as st
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import io
+from streamlit_folium import folium_static
+import folium
+from PIL import Image
+import requests
+import gdown
+import os
+import gc
+from datetime import datetime, timedelta
