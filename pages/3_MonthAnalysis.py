@@ -20,13 +20,20 @@ st.write("Upload your data files (Month) to analyze parameters like humidity, te
 # Debug settings
 DEBUG = True  # Set to False in production
 
-# Sidebar: Logo
-logo_path = r"D:\chrf\pythonProject1\tool\Logo.jpg"
+def load_image_from_url(url):
+    response = requests.get(url, stream=True)
+    if response.status_code != 200:
+        raise FileNotFoundError(f"Could not load image from {url}")
+    image = Image.open(response.raw)
+    return image
+
+# Logo URL (raw format)
+logo_url = "https://raw.githubusercontent.com/Chdj96/Tool-demo/main/images/Logo.jpg"
 try:
-    logo = Image.open(logo_path)
-    st.sidebar.image(logo, use_column_width=True)
+    logo = load_image_from_url(logo_url)
+    st.sidebar.image(logo)
 except Exception as e:
-    st.sidebar.warning("⚠️ Logo not found or failed to load.")
+    st.sidebar.warning(f"⚠️ Could not load logo: {str(e)}")
 
 # Sidebar: File uploader and GDrive link
 st.sidebar.header("User Inputs")
