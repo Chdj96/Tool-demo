@@ -193,6 +193,13 @@ def get_unit_for_column(column_name):
         if param.lower() in column_name.lower():
             return unit
     return "Value"
+# Time rounding helper used in axis formatting
+from datetime import datetime
+
+def round_time(dt, base=30):
+    """Rounds a datetime object to the nearest `base` minutes."""
+    new_minute = (dt.minute // base) * base
+    return dt.replace(minute=new_minute, second=0, microsecond=0)
 
 def create_gradient_plot(data_left, data_right=None, title="", param_left="", param_right=None, left_unit="",
                          right_unit=None, show_thresholds=False, thresholds=None, start_time=None, end_time=None,
