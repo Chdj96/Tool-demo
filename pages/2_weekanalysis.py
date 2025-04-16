@@ -244,20 +244,24 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
             ax.axhline(y=value, color='yellow' if "UBA" in label else 'red', linestyle='--', linewidth=1.5,
                        label=f"{label}: {value} µg/m³")
 
-       # Time axis formatting every 12 hours, ending at 23:59
-    rounded_start = start_time.replace(minute=0, second=0)
+       #     # Make sure index is datetime for alignment
+    if not isinstance(data_left.index, pd.DatetimeIndex):
+        data_left = data_left.copy()
+        data_left.index = pd.to_datetime(data_left['ISO8601'])  # replace with actual timestamp column
+
+    # Define tick range from rounded start to 23:59 on end date
+    rounded_start = data_left.index.min().replace(minute=0, second=0)
     if rounded_start.hour >= 12:
         rounded_start = rounded_start.replace(hour=12)
     else:
         rounded_start = rounded_start.replace(hour=0)
 
-    # Extend end time to ensure last tick at 23:59
-    rounded_end = end_time.replace(hour=23, minute=59, second=0)
+    rounded_end = data_left.index.max().replace(hour=23, minute=59, second=0)
 
-    # Create list of 12-hour spaced tick times
+    # Create ticks every 12 hours
     tick_times = pd.date_range(start=rounded_start, end=rounded_end, freq='12H')
     
-    # Match tick_times to data indices
+    # Convert tick times to closest x values
     tick_indices = [data_left.index.get_indexer([t], method='nearest')[0] for t in tick_times]
     time_labels = [t.strftime('%d.%m.%Y %H:%M') for t in tick_times]
 
