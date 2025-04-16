@@ -32,11 +32,98 @@ try:
 except Exception as e:
     st.sidebar.warning(f"⚠️ Could not load logo: {str(e)}")
 
-# Sidebar for user inputs
+# Sidebar: File uploader and GDrive link
 st.sidebar.header("User Inputs")
-uploaded_file = st.sidebar.file_uploader("Upload CSV File", type=["csv"])
-google_drive_link = st.sidebar.text_input("Enter Google Drive Link")
-period = st.sidebar.slider("Select Time Interval (Minutes)", 1, 60, 120)
+uploaded_files = st.sidebar.file_uploader("Upload CSV Files (One Month)", type=["csv"], accept_multiple_files=True)
+google_drive_link = st.sidebar.text_input("Or enter Google Drive link to a CSV file:")
+period = st.sidebar.slider("Select Time Interval (minutes)", 1, 60, 180)
+
+
+# Helper function to round time
+def round_time(dt, base=15):
+    minutes = (dt.minute // base) * base
+    return dt.replace(minute=minutes, second=0, microsecond=0)
+
+
+# Enhanced Google Drive downloader with debugging
+def download_large_csv_from_gdrive(gdrive_url):
+    try:
+        if DEBUG: st.write("🔍 Starting Google Drive download process...")
+
+        # Extract file ID from different URL formats
+        if "id=" in gdrive_url:
+            file_id = gdrive_url.split("id=")[-1].split("&")[0]
+        elif "file/d/" in gdrive_url:
+            file_id = gdrive_url.split("/file/d/")[1].split("/")[0]
+        else:
+            file_id = gdrive_url.split("/")[-1]
+
+        if DEBUG: st.write(f"🔍 Extracted File ID: {file_id}")
+
+        # Create download URL
+        download_url = f"https://drive.google.com/uc?id={file_id}"
+        output_path = "temp_downloaded_file.csv"
+
+        # Download with progress indication
+        with st.spinner('Downloading large file... This may take several minutes for files >200MB'):
+            gdown.download(download_url, output_path, quiet=False)
+
+            # Verify download completed
+            if not os.path.exists(output_path):
+                st.error("❌ File download failed - no file was created")
+                return None
+
+            file_size = os.path.getsize(output_path) / (1024 * 1024)  # Size in MB
+            if DEBUG: st.write(f"🔍 Successfully downloaded {file_size:.1f} MB file")
+
+        # Read in chunks to handle large files
+        chunks = []
+        for chunk in pd.read_csv(output_path, chunksize=100000):  # 100k rows per chunk
+            chunks.append(chunk)
+
+        # Combine and clean up
+        data = pd.concat(chunks)
+        os.remove(output_path)  # Remove temporary file
+
+        # Optimize memory usage
+        for col in data.select_dtypes(include=['float64']):
+            data[col] = pd.to_numeric(data[col], downcast='float')
+        for col in data.select_dtypes(include=['int64']):
+            data[col] = pd.to_numeric(data[col], downcast='integer')
+
+        if DEBUG:
+            st.write("🔍 Data preview:", data.head())
+            st.write(f"🔍 Memory usage after loading: {data.memory_usage(deep=True).sum() / (1024 ** 2):.2f} MB")
+
+        return data
+
+    except Exception as e:
+        st.error(f"❌ Download failed with error: {str(e)}")
+        return None
+
+
+# Handle Google Drive link or uploaded files
+data_list = []
+
+if google_drive_link:
+    gdrive_data = download_large_csv_from_gdrive(google_drive_link)
+    if gdrive_data is not None:
+        data_list = [gdrive_data]
+        st.success("✅ Large file loaded successfully from Google Drive!")
+else:
+    if uploaded_files:
+        for file in uploaded_files:
+            try:
+                # Read uploaded files in chunks
+                chunks = []
+                for chunk in pd.read_csv(file, chunksize=100000):  # 100k rows per chunk
+                    chunks.append(chunk)
+                data_list.append(pd.concat(chunks))
+            except Exception as e:
+                st.error(f"❌ Error reading {file.name}: {str(e)}")
+
+        if data_list:
+            st.success(f"✅ {len(uploaded_files)} files uploaded and combined successfully!")
 
 # Map Settings
 st.sidebar.header("Map Settings")
