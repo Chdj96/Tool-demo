@@ -21,7 +21,7 @@ logo_url = "https://raw.githubusercontent.com/Chdj96/Tool-demo/main/images/Logo.
 logo = load_image_from_url(logo_url)
 
 if logo is not None:
-    st.sidebar.image(logo, use_container_width=True)
+    st.sidebar.image(logo)
 else:
     st.sidebar.warning("⚠️ Logo could not be loaded.")
 
@@ -38,10 +38,9 @@ main_image_url = "https://raw.githubusercontent.com/Chdj96/Tool-demo/main/images
 main_image = load_image_from_url(main_image_url)
 
 if main_image is not None:
-    st.image(main_image, caption="Nachhaltigkeit messbar machen", use_column_width=True)
+    st.image(main_image, caption="Nachhaltigkeit messbar machen")
 else:
     st.warning("⚠️ Main image could not be loaded.")
-
 # Footer
 st.markdown("---")
 st.write("Developed by **90green** | Data-Driven Urban Sustainability")
