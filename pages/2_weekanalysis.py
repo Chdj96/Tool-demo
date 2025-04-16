@@ -236,55 +236,32 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
         for label, value in thresholds.items():
             ax.axhline(y=value, color='yellow' if "UBA" in label else 'red', linestyle='--', linewidth=1.5,
                        label=f"{label}: {value} µg/m³")
-# Time axis formatting
-    num_segments = 12
-    tick_indices = np.linspace(0, len(data_left) - 1, num_segments, dtype=int)
-    time_range = pd.date_range(start=start_time, end=end_time, periods=num_segments)
-    time_labels = [round_time(t, base=rounding_base).strftime('%d.%m.%Y %H:%M') for t in time_range]
-    time_labels[-1] = time_range[-1].strftime('%Y-%m-%d\n23:59')
-
-    ax.set_xticks(tick_indices)
-    ax.set_xticklabels(time_labels, rotation=45, ha='right')
-
-    # Adjust y-axis
-    mean_value = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
-    ax.set_ylim(0, mean_value * 1.2)
 
     ax.set_title(title)
-    ax.legend(title="Parameters", loc="best")
-    ax.set_xlabel("Time")
-    ax.set_ylabel(f"Value ({left_unit})" if not right_unit else f"Value ({left_unit}, {right_unit})")
-
+    ax.set_xlabel("Time Segments")
+    ax.set_ylabel(left_unit)
+    ax.legend()
     st.pyplot(fig)
+# Continuation of the previous code...
 
-    # Save and add download button
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=300)
-    buf.seek(0)
-    st.download_button(
-        label="📥 Download Plot",
-        data=buf,
-        file_name=f"{title.replace(' ', '_')}.png",
-        mime="image/png"
-    )
-    plt.close(fig)
+# ========== MAIN LOGIC FOR DATA PROCESSING ==========
+if data_list:
+    data = pd.concat(data_list, ignore_index=True)
 
-# Main program logic
-if uploaded_file:
-    data = pd.read_csv(uploaded_file)
-    st.success("File uploaded successfully!")
-
-    if 'ISO8601' in data.columns:
-        data['ISO8601'] = pd.to_datetime(data['ISO8601'], errors='coerce')
-        if data['ISO8601'].dt.tz is None:
-            data['ISO8601'] = data['ISO8601'].dt.tz_localize('UTC').dt.tz_convert('Europe/Berlin')
-        start_time_column = data['ISO8601']
-    else:
-        st.error("The dataset must contain a 'ISO8601' column.")
+    if 'ISO8601' not in data.columns:
+        st.error("❌ Your dataset must contain an 'ISO8601' column.")
         st.stop()
 
+    data['ISO8601'] = pd.to_datetime(data['ISO8601'], errors='coerce')
+    data.dropna(subset=['ISO8601'], inplace=True)
+
+    if data['ISO8601'].dt.tz is None:
+        data['ISO8601'] = data['ISO8601'].dt.tz_localize('UTC').dt.tz_convert('Europe/Berlin')
+
+    start_time_column = data['ISO8601']
+
     st.sidebar.header("Column Selection")
-    all_columns = data.columns.tolist()
+    all_columns = [col for col in data.columns if col != 'ISO8601']
 
     left_param = st.sidebar.selectbox("Select Left Column", all_columns, index=0)
     right_column_optional = st.sidebar.checkbox("Compare with Right Column")
@@ -294,18 +271,16 @@ if uploaded_file:
         right_param = st.sidebar.selectbox("Select Right Column", all_columns, index=1)
 
     left_unit = get_unit_for_column(left_param)
-    right_unit = get_unit_for_column(right_param) if right_column_optional else None
+    right_unit = get_unit_for_column(right_param) if right_param else None
 
     pm_type = st.sidebar.selectbox("Select PM Type", ["PM10.0", "PM2.5"])
     thresholds = threshold_values_pm10 if pm_type == "PM10.0" else threshold_values_pm25
 
-    # Inside The sidebar
+    # Threshold display/apply config
     show_thresholds = {}
     apply_thresholds = {}
 
-    with st.sidebar.expander(" PM Threshold Options", expanded=True):
-        st.markdown("Choose which PM thresholds to **display** as lines and which to **apply** for coloring the plot.")
-
+    with st.sidebar.expander("PM Threshold Options", expanded=True):
         for label, value in thresholds.items():
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
@@ -315,64 +290,57 @@ if uploaded_file:
             with col3:
                 apply_thresholds[label] = st.checkbox("Apply", value=("WHO" in label), key=f"apply_{label}")
 
-    column_data_left = pd.to_numeric(data[left_param], errors="coerce")
-    maxVal_left, AvgVal_left, minVal_left, number_of_points_left = analyze_data(column_data_left, period)
+    column_data_left = pd.to_numeric(data[left_param], errors="coerce").dropna()
+    maxVal_left, AvgVal_left, minVal_left, _ = analyze_data(column_data_left, period)
 
     column_data_right = None
-    if right_column_optional:
-        column_data_right = pd.to_numeric(data[right_param], errors="coerce")
-        maxVal_right, AvgVal_right, minVal_right, number_of_points_right = analyze_data(column_data_right, period)
+    if right_param:
+        column_data_right = pd.to_numeric(data[right_param], errors="coerce").dropna()
+        maxVal_right, AvgVal_right, minVal_right, _ = analyze_data(column_data_right, period)
 
     start_time = start_time_column.min()
     end_time = start_time_column.max()
 
-    st.subheader("Average Values")
+    st.subheader("📈 Average Values Plot")
     create_gradient_plot(
         data_left=AvgVal_left,
         data_right=AvgVal_right if right_column_optional else None,
         title="Average Values",
-        param_left=left_param,
-        param_right=right_param,
+        param_left=f"S1. {left_param}",
+        param_right=f"S2. {right_param}" if right_param else None,
         left_unit=left_unit,
         right_unit=right_unit,
-        thresholds=thresholds,
+        thresholds={k: v for k, v in thresholds.items() if show_thresholds.get(k)},
         show_thresholds=any(show_thresholds.values()),
         start_time=start_time,
         end_time=end_time
     )
 
-    # Statistics display
-    st.subheader(f"Statistics for {left_param}")
+    # Display stats
+    st.subheader(f"📊 Statistics for {left_param}")
     st.write(f"Maximum Value: {np.max(maxVal_left):.2f} {left_unit}")
     st.write(f"Minimum Value: {np.min(minVal_left):.2f} {left_unit}")
     st.write(f"Average Value: {np.mean(AvgVal_left):.2f} {left_unit}")
 
-    if right_column_optional:
-        st.subheader(f"Statistics for {right_param}")
+    if right_param:
+        st.subheader(f"📊 Statistics for {right_param}")
         st.write(f"Maximum Value: {np.max(maxVal_right):.2f} {right_unit}")
         st.write(f"Minimum Value: {np.min(minVal_right):.2f} {right_unit}")
         st.write(f"Average Value: {np.mean(AvgVal_right):.2f} {right_unit}")
 
     # Exceedance Calculation
-    calculate_exceedance = st.sidebar.checkbox("Calculate PM Exceedance")
-    if calculate_exceedance and any(show_thresholds.values()):
-        exceedance_results = {}
+    if st.sidebar.checkbox("Calculate PM Exceedance") and any(show_thresholds.values()):
+        st.subheader(f"📊 PM Exceedance for {left_param}")
         for label, value in thresholds.items():
-            if show_thresholds.get(label, False):
-                exceedance_results[label] = sum(AvgVal_left > value) / len(AvgVal_left) * 100
+            if show_thresholds.get(label):
+                percent = np.sum(AvgVal_left > value) / len(AvgVal_left) * 100
+                st.write(f"❌ **{label}** exceeded in **{percent:.2f}%** of the time.")
 
-        st.subheader(f"📊 PM Exceedance Calculation for {left_param}")
-        for label, percentage in exceedance_results.items():
-            st.write(f"❌ **{label}:** Exceeded in **{percentage:.2f}%** of the time.")
-
-        if right_column_optional:
-            exceedance_results_right = {}
+        if right_param:
+            st.subheader(f"📊 PM Exceedance for {right_param}")
             for label, value in thresholds.items():
-                if show_thresholds.get(label, False):
-                    exceedance_results_right[label] = sum(AvgVal_right > value) / len(AvgVal_right) * 100
-
-            st.subheader(f"📊 PM Exceedance Calculation for {right_param}")
-            for label, percentage in exceedance_results_right.items():
-                st.write(f"❌ **{label}:** Exceeded in **{percentage:.2f}%** of the time.")
+                if show_thresholds.get(label):
+                    percent = np.sum(AvgVal_right > value) / len(AvgVal_right) * 100
+                    st.write(f"❌ **{label}** exceeded in **{percent:.2f}%** of the time.")
 else:
-    st.warning("Please upload a CSV file to get started.")
+    st.warning("Please upload a CSV file or provide a Google Drive link to start.")
