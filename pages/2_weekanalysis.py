@@ -3,28 +3,34 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import io
-from streamlit_folium import folium_static
-import folium
-from PIL import Image
 import tempfile
+import folium
+from streamlit_folium import folium_static
+from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 import time
+import requests
 
-# Page configuration
+# Streamlit setup
 st.set_page_config(page_title="Multi-Parameter Analysis Tool", layout="wide")
 st.title("🌡️ Multi-Parameter Analysis Tool")
 st.write("Upload your data file to analyze various parameters such as humidity, temperature, NOx, VOC, and PM.")
 
-# Load and display the company logo at the top of the sidebar
-logo_path = r"D:\chrf\pythonProject1\tool\Logo.jpg"  # Adjust the path accordingly
+def load_image_from_url(url):
+    response = requests.get(url, stream=True)
+    if response.status_code != 200:
+        raise FileNotFoundError(f"Could not load image from {url}")
+    image = Image.open(response.raw)
+    return image
+
+# Logo URL (raw format)
+logo_url = "https://raw.githubusercontent.com/Chdj96/Tool-demo/main/images/Logo.jpg"
 try:
-    logo = Image.open(logo_path)
-    st.sidebar.image(logo, use_container_width=True)
-except FileNotFoundError:
-    st.sidebar.error("⚠️ Logo not found. Please check the file path.")
+    logo = load_image_from_url(logo_url)
+    st.sidebar.image(logo)
 except Exception as e:
-    st.sidebar.error(f"⚠️ An error occurred: {e}")
+    st.sidebar.warning(f"⚠️ Could not load logo: {str(e)}")
 
 # Sidebar for user inputs
 st.sidebar.header("User Inputs")
