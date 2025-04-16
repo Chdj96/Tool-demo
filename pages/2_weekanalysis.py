@@ -237,12 +237,38 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
             ax.axhline(y=value, color='yellow' if "UBA" in label else 'red', linestyle='--', linewidth=1.5,
                        label=f"{label}: {value} µg/m³")
 
+    # Time axis formatting
+    num_segments = 12
+    tick_indices = np.linspace(0, len(data_left) - 1, num_segments, dtype=int)
+    time_range = pd.date_range(start=start_time, end=end_time, periods=num_segments)
+    time_labels = [round_time(t, base=rounding_base).strftime('%d.%m.%Y %H:%M') for t in time_range]
+    time_labels[-1] = time_range[-1].strftime('%Y-%m-%d\n23:59')
+
+    ax.set_xticks(tick_indices)
+    ax.set_xticklabels(time_labels, rotation=45, ha='right')
+
+    # Adjust y-axis
+    mean_value = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
+    ax.set_ylim(0, mean_value * 1.2)
+
     ax.set_title(title)
-    ax.set_xlabel("Time Segments")
-    ax.set_ylabel(left_unit)
-    ax.legend()
+    ax.legend(title="Parameters", loc="best")
+    ax.set_xlabel("Time")
+    ax.set_ylabel(f"Value ({left_unit})" if not right_unit else f"Value ({left_unit}, {right_unit})")
+
     st.pyplot(fig)
-# Continuation of the previous code...
+
+    # Save and add download button
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=300)
+    buf.seek(0)
+    st.download_button(
+        label="📥 Download Plot",
+        data=buf,
+        file_name=f"{title.replace(' ', '_')}.png",
+        mime="image/png"
+    )
+    plt.close(fig)
 
 # ========== MAIN LOGIC FOR DATA PROCESSING ==========
 if data_list:
