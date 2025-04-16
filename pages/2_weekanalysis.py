@@ -244,7 +244,7 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
             ax.axhline(y=value, color='yellow' if "UBA" in label else 'red', linestyle='--', linewidth=1.5,
                        label=f"{label}: {value} µg/m³")
 # Time axis formatting
-    num_segments = 12
+    num_segments = 15
     tick_indices = np.linspace(0, len(data_left) - 1, num_segments, dtype=int)
     time_range = pd.date_range(start=start_time, end=end_time, periods=num_segments)
     time_labels = [round_time(t, base=rounding_base).strftime('%d.%m.%Y %H:%M') for t in time_range]
