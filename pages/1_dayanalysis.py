@@ -135,11 +135,28 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
             color = 'orange' if "UBA" in label else 'red'
             ax.axhline(y=value, color=color, linestyle='--', linewidth=1.5, label=f"{label}: {value} µg/m³")
 
-    time_range = pd.date_range(start=start_time, end=end_time, periods=len(data_left))
-    ticks = np.linspace(0, len(data_left) - 1, 12).astype(int)
-    labels = [time_range[i].strftime('%Y-%m-%d\n%H:%M') for i in ticks]
-    ax.set_xticks(ticks)
-    ax.set_xticklabels(labels, rotation=45)
+        # Generate time range
+        time_range = pd.date_range(start=start_time, end=end_time, periods=len(data_left))
+
+        # Calculate regular hour intervals (every 3 hours)
+        hour_interval = 2
+        num_intervals = int(24 / hour_interval)
+        tick_indices = np.linspace(0, len(data_left) - 1, num_intervals).astype(int)
+
+        # Format time labels with date and regular hour intervals
+        time_labels = [time_range[i].strftime('%Y-%m-%d\n%H:00') for i in tick_indices]
+
+        # Set the last label to 23:59
+        time_labels[-1] = time_range[-1].strftime('%Y-%m-%d\n23:59')
+
+        ax.set_xticks(tick_indices)
+        ax.set_xticklabels(time_labels, rotation=45, ha='right')
+
+        # Extend Y-axis above the maximum value
+        mean_value = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
+        ax.set_ylim(0, mean_value * 1.2)  # Extend 10% above max
+
+
 
     ax.set_xlabel("Time")
     ax.set_ylabel(f"Value ({left_unit})" if not right_unit else f"Value ({left_unit}, {right_unit})")
