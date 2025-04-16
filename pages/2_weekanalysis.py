@@ -11,11 +11,16 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 import time
 import requests
+import os
+import gdown
 
 # Streamlit setup
 st.set_page_config(page_title="Multi-Parameter Analysis Tool", layout="wide")
 st.title("🌡️ Multi-Parameter Analysis Tool")
 st.write("Upload your data file to analyze various parameters such as humidity, temperature, NOx, VOC, and PM.")
+
+# Debug toggle
+DEBUG = st.sidebar.checkbox("Enable Debug Logs", value=False)
 
 def load_image_from_url(url):
     response = requests.get(url, stream=True)
@@ -38,19 +43,11 @@ uploaded_files = st.sidebar.file_uploader("Upload CSV Files (One Month)", type=[
 google_drive_link = st.sidebar.text_input("Or enter Google Drive link to a CSV file:")
 period = st.sidebar.slider("Select Time Interval (minutes)", 1, 60, 180)
 
-
-# Helper function to round time
-def round_time(dt, base=15):
-    minutes = (dt.minute // base) * base
-    return dt.replace(minute=minutes, second=0, microsecond=0)
-
-
 # Enhanced Google Drive downloader with debugging
 def download_large_csv_from_gdrive(gdrive_url):
     try:
         if DEBUG: st.write("🔍 Starting Google Drive download process...")
 
-        # Extract file ID from different URL formats
         if "id=" in gdrive_url:
             file_id = gdrive_url.split("id=")[-1].split("&")[0]
         elif "file/d/" in gdrive_url:
@@ -60,32 +57,26 @@ def download_large_csv_from_gdrive(gdrive_url):
 
         if DEBUG: st.write(f"🔍 Extracted File ID: {file_id}")
 
-        # Create download URL
         download_url = f"https://drive.google.com/uc?id={file_id}"
         output_path = "temp_downloaded_file.csv"
 
-        # Download with progress indication
         with st.spinner('Downloading large file... This may take several minutes for files >200MB'):
             gdown.download(download_url, output_path, quiet=False)
 
-            # Verify download completed
             if not os.path.exists(output_path):
                 st.error("❌ File download failed - no file was created")
                 return None
 
-            file_size = os.path.getsize(output_path) / (1024 * 1024)  # Size in MB
-            if DEBUG: st.write(f"🔍 Successfully downloaded {file_size:.1f} MB file")
+            file_size = os.path.getsize(output_path) / (1024 * 1024)
+            if DEBUG: st.write(f"🔍 Downloaded {file_size:.1f} MB")
 
-        # Read in chunks to handle large files
         chunks = []
-        for chunk in pd.read_csv(output_path, chunksize=100000):  # 100k rows per chunk
+        for chunk in pd.read_csv(output_path, chunksize=100000):
             chunks.append(chunk)
 
-        # Combine and clean up
         data = pd.concat(chunks)
-        os.remove(output_path)  # Remove temporary file
+        os.remove(output_path)
 
-        # Optimize memory usage
         for col in data.select_dtypes(include=['float64']):
             data[col] = pd.to_numeric(data[col], downcast='float')
         for col in data.select_dtypes(include=['int64']):
@@ -93,14 +84,13 @@ def download_large_csv_from_gdrive(gdrive_url):
 
         if DEBUG:
             st.write("🔍 Data preview:", data.head())
-            st.write(f"🔍 Memory usage after loading: {data.memory_usage(deep=True).sum() / (1024 ** 2):.2f} MB")
+            st.write(f"🔍 Memory usage: {data.memory_usage(deep=True).sum() / (1024 ** 2):.2f} MB")
 
         return data
 
     except Exception as e:
         st.error(f"❌ Download failed with error: {str(e)}")
         return None
-
 
 # Handle Google Drive link or uploaded files
 data_list = []
@@ -109,21 +99,19 @@ if google_drive_link:
     gdrive_data = download_large_csv_from_gdrive(google_drive_link)
     if gdrive_data is not None:
         data_list = [gdrive_data]
-        st.success("✅ Large file loaded successfully from Google Drive!")
+        st.success("✅ File loaded from Google Drive!")
 else:
     if uploaded_files:
         for file in uploaded_files:
             try:
-                # Read uploaded files in chunks
                 chunks = []
-                for chunk in pd.read_csv(file, chunksize=100000):  # 100k rows per chunk
+                for chunk in pd.read_csv(file, chunksize=100000):
                     chunks.append(chunk)
                 data_list.append(pd.concat(chunks))
             except Exception as e:
                 st.error(f"❌ Error reading {file.name}: {str(e)}")
-
         if data_list:
-            st.success(f"✅ {len(uploaded_files)} files uploaded and combined successfully!")
+            st.success(f"✅ {len(uploaded_files)} files uploaded and combined!")
 
 # Map Settings
 st.sidebar.header("Map Settings")
@@ -146,6 +134,7 @@ def save_map_screenshot():
 
     temp_html = tempfile.NamedTemporaryFile(delete=False, suffix=".html")
     map_object.save(temp_html.name)
+    temp_html.close()
     driver.get("file://" + temp_html.name)
     time.sleep(2)
 
@@ -157,14 +146,14 @@ def save_map_screenshot():
 if st.button("📥 Download Map"):
     map_path = save_map_screenshot()
     with open(map_path, "rb") as file:
-        btn = st.download_button(
+        st.download_button(
             label="Download Map as Image",
             data=file,
             file_name="map.png",
             mime="image/png"
         )
 
-# Parameter units and threshold values
+# Thresholds and units
 parameter_units = {
     "Humidity": "%",
     "Temperature": "°C",
@@ -183,21 +172,21 @@ threshold_values_pm25 = {
 }
 
 def analyze_data(column_data, period):
-    length_of_segment = round(period * 60)
-    total_samples = len(column_data)
-    number_of_points = int(np.floor(total_samples / length_of_segment))
+    length = round(period * 60)
+    total = len(column_data)
+    segments = int(np.floor(total / length))
 
-    max_values = np.zeros(number_of_points)
-    avg_values = np.zeros(number_of_points)
-    min_values = np.zeros(number_of_points)
+    max_vals = np.zeros(segments)
+    avg_vals = np.zeros(segments)
+    min_vals = np.zeros(segments)
 
-    for i in range(number_of_points):
-        segment_data = column_data[i * length_of_segment: (i + 1) * length_of_segment]
-        max_values[i] = np.max(segment_data)
-        avg_values[i] = np.mean(segment_data)
-        min_values[i] = np.min(segment_data)
+    for i in range(segments):
+        seg = column_data[i * length: (i + 1) * length]
+        max_vals[i] = np.max(seg)
+        avg_vals[i] = np.mean(seg)
+        min_vals[i] = np.min(seg)
 
-    return max_values, avg_values, min_values, number_of_points
+    return max_vals, avg_vals, min_vals, segments
 
 def get_unit_for_column(column_name):
     for param, unit in parameter_units.items():
@@ -205,29 +194,21 @@ def get_unit_for_column(column_name):
             return unit
     return "Value"
 
-def round_time(dt, base=15):
-    new_minute = (dt.minute // base) * base
-    return dt.replace(minute=new_minute, second=0)
-
 def create_gradient_plot(data_left, data_right=None, title="", param_left="", param_right=None, left_unit="",
-                        right_unit=None, show_thresholds=False, thresholds=None, start_time=None, end_time=None,
-                        rounding_base=30):
+                         right_unit=None, show_thresholds=False, thresholds=None, start_time=None, end_time=None,
+                         rounding_base=30):
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    # Clean legend labels
     param_left_clean = param_left.replace("Left_", "S1_").replace("left_", "S1_")
     param_right_clean = param_right.replace("right_", "S2_").replace("Right_", "S2_") if param_right else None
 
     x = np.arange(len(data_left))
     y = np.array(data_left)
 
-    # Plot the main line
     ax.plot(x, y, label=f"{param_left_clean} ({left_unit})", color="green", linewidth=2)
 
-    # Get the WHO threshold if thresholds are provided and show_thresholds is True
     who_threshold = thresholds.get("Daily Average (WHO Recommendation)", None) if show_thresholds and thresholds else None
 
-    # Apply gradient coloring if WHO threshold is available
     if who_threshold is not None:
         prev_above = y[0] > who_threshold
         for i in range(len(x) - 1):
@@ -244,158 +225,20 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
                         color='red' if not prev_above else 'green', linewidth=2)
                 prev_above = current_above
                 continue
-
             ax.plot([x[i], x[i + 1]], [y[i], y[i + 1]], color=color, linewidth=2)
             prev_above = current_above
 
-    # Add right-side data if available
     if data_right is not None:
         ax.plot(data_right, label=f"{param_right_clean} ({right_unit})", linestyle="solid", color="blue")
         ax.fill_between(range(len(data_right)), data_right, alpha=0.1, color="skyblue")
 
-    # Add threshold lines if needed
     if show_thresholds and thresholds:
         for label, value in thresholds.items():
             ax.axhline(y=value, color='yellow' if "UBA" in label else 'red', linestyle='--', linewidth=1.5,
-                      label=f"{label}: {value} µg/m³")
-
-    # Time axis formatting
-    num_segments = 12
-    tick_indices = np.linspace(0, len(data_left) - 1, num_segments, dtype=int)
-    time_range = pd.date_range(start=start_time, end=end_time, periods=num_segments)
-    time_labels = [round_time(t, base=rounding_base).strftime('%d.%m.%Y %H:%M') for t in time_range]
-    time_labels[-1] = time_range[-1].strftime('%Y-%m-%d\n23:59')
-
-    ax.set_xticks(tick_indices)
-    ax.set_xticklabels(time_labels, rotation=45, ha='right')
-
-    # Adjust y-axis
-    mean_value = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
-    ax.set_ylim(0, mean_value * 1.2)
+                       label=f"{label}: {value} µg/m³")
 
     ax.set_title(title)
-    ax.legend(title="Parameters", loc="best")
-    ax.set_xlabel("Time")
-    ax.set_ylabel(f"Value ({left_unit})" if not right_unit else f"Value ({left_unit}, {right_unit})")
-
+    ax.set_xlabel("Time Segments")
+    ax.set_ylabel(left_unit)
+    ax.legend()
     st.pyplot(fig)
-
-    # Save and add download button
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=300)
-    buf.seek(0)
-    st.download_button(
-        label="📥 Download Plot",
-        data=buf,
-        file_name=f"{title.replace(' ', '_')}.png",
-        mime="image/png"
-    )
-    plt.close(fig)
-
-# Main program logic
-if uploaded_file:
-    data = pd.read_csv(uploaded_file)
-    st.success("File uploaded successfully!")
-
-    if 'ISO8601' in data.columns:
-        data['ISO8601'] = pd.to_datetime(data['ISO8601'], errors='coerce')
-        if data['ISO8601'].dt.tz is None:
-            data['ISO8601'] = data['ISO8601'].dt.tz_localize('UTC').dt.tz_convert('Europe/Berlin')
-        start_time_column = data['ISO8601']
-    else:
-        st.error("The dataset must contain a 'ISO8601' column.")
-        st.stop()
-
-    st.sidebar.header("Column Selection")
-    all_columns = data.columns.tolist()
-
-    left_param = st.sidebar.selectbox("Select Left Column", all_columns, index=0)
-    right_column_optional = st.sidebar.checkbox("Compare with Right Column")
-
-    right_param = None
-    if right_column_optional:
-        right_param = st.sidebar.selectbox("Select Right Column", all_columns, index=1)
-
-    left_unit = get_unit_for_column(left_param)
-    right_unit = get_unit_for_column(right_param) if right_column_optional else None
-
-    pm_type = st.sidebar.selectbox("Select PM Type", ["PM10.0", "PM2.5"])
-    thresholds = threshold_values_pm10 if pm_type == "PM10.0" else threshold_values_pm25
-
-    # Inside The sidebar
-    show_thresholds = {}
-    apply_thresholds = {}
-
-    with st.sidebar.expander(" PM Threshold Options", expanded=True):
-        st.markdown("Choose which PM thresholds to **display** as lines and which to **apply** for coloring the plot.")
-
-        for label, value in thresholds.items():
-            col1, col2, col3 = st.columns([2, 1, 1])
-            with col1:
-                st.markdown(f"**{label}** ({value} µg/m³)")
-            with col2:
-                show_thresholds[label] = st.checkbox("Show", value=True, key=f"show_{label}")
-            with col3:
-                apply_thresholds[label] = st.checkbox("Apply", value=("WHO" in label), key=f"apply_{label}")
-
-    column_data_left = pd.to_numeric(data[left_param], errors="coerce")
-    maxVal_left, AvgVal_left, minVal_left, number_of_points_left = analyze_data(column_data_left, period)
-
-    column_data_right = None
-    if right_column_optional:
-        column_data_right = pd.to_numeric(data[right_param], errors="coerce")
-        maxVal_right, AvgVal_right, minVal_right, number_of_points_right = analyze_data(column_data_right, period)
-
-    start_time = start_time_column.min()
-    end_time = start_time_column.max()
-
-    st.subheader("Average Values")
-    create_gradient_plot(
-        data_left=AvgVal_left,
-        data_right=AvgVal_right if right_column_optional else None,
-        title="Average Values",
-        param_left=left_param,
-        param_right=right_param,
-        left_unit=left_unit,
-        right_unit=right_unit,
-        thresholds=thresholds,
-        show_thresholds=any(show_thresholds.values()),
-        start_time=start_time,
-        end_time=end_time
-    )
-
-    # Statistics display
-    st.subheader(f"Statistics for {left_param}")
-    st.write(f"Maximum Value: {np.max(maxVal_left):.2f} {left_unit}")
-    st.write(f"Minimum Value: {np.min(minVal_left):.2f} {left_unit}")
-    st.write(f"Average Value: {np.mean(AvgVal_left):.2f} {left_unit}")
-
-    if right_column_optional:
-        st.subheader(f"Statistics for {right_param}")
-        st.write(f"Maximum Value: {np.max(maxVal_right):.2f} {right_unit}")
-        st.write(f"Minimum Value: {np.min(minVal_right):.2f} {right_unit}")
-        st.write(f"Average Value: {np.mean(AvgVal_right):.2f} {right_unit}")
-
-    # Exceedance Calculation
-    calculate_exceedance = st.sidebar.checkbox("Calculate PM Exceedance")
-    if calculate_exceedance and any(show_thresholds.values()):
-        exceedance_results = {}
-        for label, value in thresholds.items():
-            if show_thresholds.get(label, False):
-                exceedance_results[label] = sum(AvgVal_left > value) / len(AvgVal_left) * 100
-
-        st.subheader(f"📊 PM Exceedance Calculation for {left_param}")
-        for label, percentage in exceedance_results.items():
-            st.write(f"❌ **{label}:** Exceeded in **{percentage:.2f}%** of the time.")
-
-        if right_column_optional:
-            exceedance_results_right = {}
-            for label, value in thresholds.items():
-                if show_thresholds.get(label, False):
-                    exceedance_results_right[label] = sum(AvgVal_right > value) / len(AvgVal_right) * 100
-
-            st.subheader(f"📊 PM Exceedance Calculation for {right_param}")
-            for label, percentage in exceedance_results_right.items():
-                st.write(f"❌ **{label}:** Exceeded in **{percentage:.2f}%** of the time.")
-else:
-    st.warning("Please upload a CSV file to get started.")
