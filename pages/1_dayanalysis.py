@@ -10,19 +10,27 @@ from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 import time
+import requests
 
 # Streamlit setup
 st.set_page_config(page_title="Multi-Parameter Analysis Tool", layout="wide")
 st.title("🌡️ Multi-Parameter Analysis Tool")
 st.write("Upload your data file to analyze various parameters such as humidity, temperature, NOx, VOC, and PM.")
 
+def load_image_from_url(url):
+    response = requests.get(url, stream=True)
+    if response.status_code != 200:
+        raise FileNotFoundError(f"Could not load image from {url}")
+    image = Image.open(response.raw)
+    return image
+
 # Logo URL (raw format)
 logo_url = "https://raw.githubusercontent.com/Chdj96/Tool-demo/main/images/Logo.jpg"
-logo = load_image_from_url(logo_url)
-
+try:
+    logo = load_image_from_url(logo_url)
     st.sidebar.image(logo)
-except FileNotFoundError:
-    st.sidebar.error("⚠️ Logo not found. Please check the file path.")
+except Exception as e:
+    st.sidebar.warning(f"⚠️ Could not load logo: {str(e)}")
 
 # Sidebar Inputs
 st.sidebar.header("User Inputs")
