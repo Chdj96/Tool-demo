@@ -1,32 +1,31 @@
 import streamlit as st
 from PIL import Image
-import os
+import requests
+from io import BytesIO
 
 # Set up page configuration
 st.set_page_config(page_title="90 Green", layout="wide")
 
-def load_image(image_path):
+def load_image_from_url(url):
     """
-    Loads an image from a local path only.
+    Loads an image from a URL.
     """
     try:
-        if os.path.exists(image_path):
-            return Image.open(image_path)
-        else:
-            st.error(f"❌ Image not found at: {image_path}")
-            return None
+        response = requests.get(url)
+        response.raise_for_status()
+        return Image.open(BytesIO(response.content))
     except Exception as e:
-        st.error(f"❌ Error loading image: {e}")
+        st.error(f"❌ Error loading image from URL: {e}")
         return None
 
-# --- Logo Loading ---
-logo_path = os.path.join("images", "Logo.jpg")
-logo = load_image(logo_path)
+# --- Logo Loading from GitHub ---
+logo_url = "https://raw.githubusercontent.com/Chdj96/Tool-demo/main/images/Logo.jpg"
+logo = load_image_from_url(logo_url)
 
 if logo:
     st.sidebar.image(logo, use_container_width=True)
 else:
-    st.sidebar.warning(f"⚠️ Logo not available at {logo_path}")
+    st.sidebar.warning("⚠️ Logo not available")
 
 # --- Main Content ---
 st.title("Welcome to 90green")
@@ -36,18 +35,17 @@ st.write(
     "wir den Wandel hin zu sauberer Luft und klimafreundlichen Städten voran."
 )
 
-# --- Main Image Loading ---
-main_image_path = os.path.join("images", "Kopie von clean16.jpg")
-main_image = load_image(main_image_path)
+# --- Main Image from GitHub ---
+main_image_url = "https://raw.githubusercontent.com/Chdj96/Tool-demo/main/images/Kopie%20von%20clean16.jpg"
+main_image = load_image_from_url(main_image_url)
 
 if main_image:
     st.image(main_image,
              caption="Nachhaltigkeit messbar machen",
              use_column_width=True)
 else:
-    st.warning(f"⚠️ Main image not available at {main_image_path}")
+    st.warning("⚠️ Main image not available")
 
-# --- Footer ---
+# Footer
 st.markdown("---")
 st.write("Developed by **90green** | Data-Driven Urban Sustainability")
-
