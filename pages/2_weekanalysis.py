@@ -244,15 +244,19 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
             ax.axhline(y=value, color='yellow' if "UBA" in label else 'red', linestyle='--', linewidth=1.5,
                        label=f"{label}: {value} µg/m³")
 
-    # Time axis formatting
-    num_segments = 12
-    tick_indices = np.linspace(0, len(data_left) -1, num_segments, dtype=int)
-    time_range = pd.date_range(start=start_time, end=end_time, periods=num_segments)
-    time_labels = [round_time(t, base=rounding_base).strftime('%d.%m.%Y %H:%M') for t in time_range]
-    time_labels[-1] = time_range[-1].strftime('%Y-%m-%d\n23:59')
+        # Time axis formatting every 12 hours, ending at 23:59
+    tick_interval = pd.Timedelta(hours=12)
+    rounded_start = start_time.replace(minute=0, second=0, microsecond=0)
+    rounded_end = end_time.replace(hour=23, minute=59, second=0, microsecond=0)
+
+    time_range = pd.date_range(start=rounded_start, end=rounded_end, freq=tick_interval)
+
+    tick_indices = np.linspace(0, len(data_left) - 1, len(time_range), dtype=int)
+    time_labels = [t.strftime('%d.%m.%Y\n%H:%M') for t in time_range]
 
     ax.set_xticks(tick_indices)
     ax.set_xticklabels(time_labels, rotation=45, ha='right')
+
 
     # Adjust y-axis
     mean_value = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
