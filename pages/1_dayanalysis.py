@@ -16,11 +16,11 @@ st.set_page_config(page_title="Multi-Parameter Analysis Tool", layout="wide")
 st.title("🌡️ Multi-Parameter Analysis Tool")
 st.write("Upload your data file to analyze various parameters such as humidity, temperature, NOx, VOC, and PM.")
 
-# Logo display
-logo_path = r"D:\chrf\pythonProject1\tool\Logo.jpg"
-try:
-    logo = Image.open(logo_path)
-    st.sidebar.image(logo, use_column_width=True)
+# Logo URL (raw format)
+logo_url = "https://raw.githubusercontent.com/Chdj96/Tool-demo/main/images/Logo.jpg"
+logo = load_image_from_url(logo_url)
+
+    st.sidebar.image(logo)
 except FileNotFoundError:
     st.sidebar.error("⚠️ Logo not found. Please check the file path.")
 
