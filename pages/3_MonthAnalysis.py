@@ -3,30 +3,34 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import io
-from streamlit_folium import folium_static
+import tempfile
 import folium
+from streamlit_folium import folium_static
 from PIL import Image
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+import time
 import requests
-import gdown
-import os
-import gc
-from datetime import datetime, timedelta
 
-# Page config
+# Streamlit setup
 st.set_page_config(page_title="Multi-Parameter Analysis Tool", layout="wide")
 st.title("🌡️ Multi-Parameter Analysis Tool")
-st.write("Upload your data files (Month) to analyze parameters like humidity, temperature, NOx, VOC, and PM.")
+st.write("Upload your data file to analyze various parameters such as humidity, temperature, NOx, VOC, and PM.")
 
-# Debug settings
-DEBUG = True  # Set to False in production
+def load_image_from_url(url):
+    response = requests.get(url, stream=True)
+    if response.status_code != 200:
+        raise FileNotFoundError(f"Could not load image from {url}")
+    image = Image.open(response.raw)
+    return image
 
-# Sidebar: Logo
-logo_path = r"D:\chrf\pythonProject1\tool\Logo.jpg"
+# Logo URL (raw format)
+logo_url = "https://raw.githubusercontent.com/Chdj96/Tool-demo/main/images/Logo.jpg"
 try:
-    logo = Image.open(logo_path)
-    st.sidebar.image(logo, use_column_width=True)
+    logo = load_image_from_url(logo_url)
+    st.sidebar.image(logo)
 except Exception as e:
-    st.sidebar.warning("⚠️ Logo not found or failed to load.")
+    st.sidebar.warning(f"⚠️ Could not load logo: {str(e)}")
 
 # Sidebar: File uploader and GDrive link
 st.sidebar.header("User Inputs")
