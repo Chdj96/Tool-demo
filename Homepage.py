@@ -1,26 +1,37 @@
 import streamlit as st
 from PIL import Image
 import os
+import requests
+from io import BytesIO
 
-# Page configuration
+# Set up page configuration
 st.set_page_config(page_title="90 Green", layout="wide")
 
-# Base path to your image folder
-base_path = r"D:\chrf\pythonProject1\tool\images"
-
-def load_local_image(image_filename):
+def load_image(image_path, image_url=None):
     """
-    Load image from local file path.
+    Loads an image from a local path or a remote URL as fallback.
     """
-    image_path = os.path.join(base_path, image_filename)
-    if os.path.exists(image_path):
-        return Image.open(image_path)
-    else:
-        st.error(f"❌ Image not found: {image_path}")
+    try:
+        # Try local image first
+        if os.path.exists(image_path):
+            return Image.open(image_path)
+        # Fallback to URL if local fails
+        elif image_url:
+            response = requests.get(image_url)
+            response.raise_for_status()
+            return Image.open(BytesIO(response.content))
+        else:
+            st.error(f"❌ Image not found at: {image_path}")
+            return None
+    except Exception as e:
+        st.error(f"❌ Error loading image: {e}")
         return None
 
 # --- Logo Loading ---
-logo = load_local_image("Logo.jpg")
+logo = load_image(
+    image_path=os.path.join("images", "Logo.jpg"),
+    image_url="https://github.com/Chdj96/Tool-demo/blob/3dd98126e12a15127dc0f026c571e7cad5b76a86/images/Logo.jpg"
+)
 
 if logo:
     st.sidebar.image(logo, use_container_width=True)
@@ -35,8 +46,11 @@ st.write(
     "wir den Wandel hin zu sauberer Luft und klimafreundlichen Städten voran."
 )
 
-# --- Main Image ---
-main_image = load_local_image("Kopie von clean16")
+# --- Main Image Loading ---
+main_image = load_image(
+    image_path=os.path.join("images", " Kopie von clean16.jpg"),
+    image_url="https://github.com/Chdj96/Tool-demo/blob/3dd98126e12a15127dc0f026c571e7cad5b76a86/images/Kopie%20von%20clean16.jpg"
+)
 
 if main_image:
     st.image(main_image,
@@ -45,6 +59,6 @@ if main_image:
 else:
     st.warning("⚠️ Main image not available")
 
-# --- Footer ---
+# Footer
 st.markdown("---")
 st.write("Developed by **90green** | Data-Driven Urban Sustainability")
