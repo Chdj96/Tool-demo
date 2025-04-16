@@ -3,29 +3,29 @@ from PIL import Image
 import requests
 from io import BytesIO
 
-# Page configuration
+# Page config
 st.set_page_config(page_title="90 Green", layout="wide")
 
-# Function to load image from GitHub raw URL
+# Load image from raw GitHub URL
 def load_image_from_url(url):
     try:
         response = requests.get(url)
         response.raise_for_status()
         return Image.open(BytesIO(response.content))
     except Exception as e:
-        st.error(f"❌ Failed to load image: {e}")
+        st.warning(f"⚠️ Could not load image from URL: {e}")
         return None
 
-# --- Logo ---
+# Logo URL (raw format)
 logo_url = "https://raw.githubusercontent.com/Chdj96/Tool-demo/main/images/Logo.jpg"
 logo = load_image_from_url(logo_url)
 
-if logo:
+if logo is not None:
     st.sidebar.image(logo, use_container_width=True)
 else:
-    st.sidebar.warning("⚠️ Logo not available")
+    st.sidebar.warning("⚠️ Logo could not be loaded.")
 
-# --- Main Content ---
+# Title & Description
 st.title("Welcome to 90green")
 st.write(
     "### Data-Driven Urban Sustainability\n"
@@ -33,15 +33,15 @@ st.write(
     "wir den Wandel hin zu sauberer Luft und klimafreundlichen Städten voran."
 )
 
-# --- Main Image ---
+# Main image URL (ensure this exists in your repo!)
 main_image_url = "https://raw.githubusercontent.com/Chdj96/Tool-demo/main/images/Kopie%20von%20clean16.jpg"
 main_image = load_image_from_url(main_image_url)
 
-if main_image:
+if main_image is not None:
     st.image(main_image, caption="Nachhaltigkeit messbar machen", use_column_width=True)
 else:
-    st.warning("⚠️ Main image not available")
+    st.warning("⚠️ Main image could not be loaded.")
 
-# --- Footer ---
+# Footer
 st.markdown("---")
 st.write("Developed by **90green** | Data-Driven Urban Sustainability")
