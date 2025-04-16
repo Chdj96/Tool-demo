@@ -145,26 +145,52 @@ threshold_values_pm10 = {"Daily Average (UBA)": 50, "Daily Average (WHO Recommen
 threshold_values_pm25 = {"Annual Average (UBA)": 25, "Daily Average (WHO Recommendation)": 15}
 
 
-# Data analysis function
-def analyze_data(column_data, period):
-    length_of_segment = round(period * 3600 * 24)
-    total_samples = len(column_data)
-    number_of_points = int(np.floor(total_samples / length_of_segment))
+# FIXED: Data analysis function using proper time-based periods
+def analyze_data_by_period(df, column_name, time_column, period_days):
+    """Calculate statistics by selected time period"""
+    # Ensure datetime type
+    df = df.copy()  # Create a copy to avoid modifying the original dataframe
+    df[time_column] = pd.to_datetime(df[time_column], errors='coerce')
 
-    if number_of_points == 0:
-        return np.array([]), np.array([]), np.array([]), 0  # Handle empty data
+    # Drop rows with invalid timestamps
+    df = df.dropna(subset=[time_column])
 
-    max_values = np.zeros(number_of_points)
-    avg_values = np.zeros(number_of_points)
-    min_values = np.zeros(number_of_points)
+    # Sort by time
+    df = df.sort_values(by=time_column)
 
-    for i in range(number_of_points):
-        segment_data = column_data[i * length_of_segment: (i + 1) * length_of_segment]
-        max_values[i] = np.max(segment_data)
-        avg_values[i] = np.mean(segment_data)
-        min_values[i] = np.min(segment_data)
+    # Calculate period duration
+    start_time = df[time_column].min()
+    end_time = df[time_column].max()
+    total_days = (end_time - start_time).total_seconds() / (12 * 3600)
 
-    return max_values, avg_values, min_values, number_of_points
+    # Calculate number of periods
+    num_periods = max(1, int(np.ceil(total_days / period_days)))
+
+    # Initialize result arrays
+    period_starts = []
+    max_values = []
+    avg_values = []
+    min_values = []
+
+    # Process each period
+    for i in range(num_periods):
+        period_start = start_time + timedelta(days=i * period_days)
+        period_end = start_time + timedelta(days=(i + 1) * period_days)
+
+        # Filter data for this period
+        period_data = df[(df[time_column] >= period_start) & (df[time_column] < period_end)]
+
+        # Skip if no data in this period
+        if len(period_data) == 0:
+            continue
+
+        # Calculate statistics
+        period_starts.append(period_start)
+        max_values.append(period_data[column_name].max())
+        avg_values.append(period_data[column_name].mean())
+        min_values.append(period_data[column_name].min())
+
+    return period_starts, max_values, avg_values, min_values
 
 
 # Function to get unit for a column
@@ -194,30 +220,41 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     x = np.arange(len(data_left))
     y = np.array(data_left)
 
+    # Plot the main line
     ax.plot(x, y, label=f"{param_left_clean} ({left_unit})", color="green", linewidth=2)
 
+    # Get the WHO threshold if thresholds are provided and show_thresholds is True
     who_threshold = thresholds.get("Daily Average (WHO Recommendation)",
                                    None) if show_thresholds and thresholds else None
-    prev_above = y[0] > who_threshold if who_threshold is not None else False
 
-    for i in range(len(x) - 1):
-        current_above = y[i + 1] > who_threshold if who_threshold is not None else False
+    # Apply gradient coloring if WHO threshold is available
+    if who_threshold is not None:
+        prev_above = y[0] > who_threshold
+        for i in range(len(x) - 1):
+            current_above = y[i + 1] > who_threshold
+            if prev_above and current_above:
+                color = 'red'
+            elif not prev_above and not current_above:
+                color = 'green'
+            else:
+                x_intersect = x[i] + (who_threshold - y[i]) / (y[i + 1] - y[i])
+                ax.plot([x[i], x_intersect], [y[i], who_threshold],
+                        color='green' if not prev_above else 'red', linewidth=2)
+                ax.plot([x_intersect, x[i + 1]], [who_threshold, y[i + 1]],
+                        color='red' if not prev_above else 'green', linewidth=2)
+                prev_above = current_above
+                continue
 
-        if prev_above == current_above:
-            color = 'red' if current_above else 'green'
             ax.plot([x[i], x[i + 1]], [y[i], y[i + 1]], color=color, linewidth=2)
-        else:
-            x_intersect = x[i] + (who_threshold - y[i]) / (y[i + 1] - y[i]) if who_threshold is not None else x[i]
-            ax.plot([x[i], x_intersect], [y[i], who_threshold], color='green' if not prev_above else 'red', linewidth=2)
-            ax.plot([x_intersect, x[i + 1]], [who_threshold, y[i + 1]], color='red' if not prev_above else 'green',
-                    linewidth=2)
+            prev_above = current_above
 
-        prev_above = current_above
+        # Add right-side data if available
+        if data_right is not None:
+            x_right = np.linspace(0, len(data_left) - 1, len(data_right))
+            ax.plot(x_right, data_right, label=f"{param_right_clean} ({right_unit})", linestyle="solid", color="blue")
+            ax.fill_between(range(len(data_right)), data_right, alpha=0.1, color="skyblue")
 
-    if data_right is not None:
-        ax.plot(data_right, label=f"{param_right_clean}", linestyle="solid", color="blue")
-        ax.fill_between(range(len(data_right)), data_right, alpha=0.1, color="skyblue")
-
+        # Add threshold lines if needed
     if show_thresholds and thresholds:
         for label, value in thresholds.items():
             ax.axhline(y=value, color='yellow' if "UBA" in label else 'red', linestyle='--', linewidth=1.5,
@@ -225,20 +262,20 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
 
     # Time axis formatting
     if start_time and end_time:
-        num_segments = 12
+        num_segments = 15
         tick_indices = np.linspace(0, len(data_left) - 1, num_segments, dtype=int)
         time_range = pd.date_range(start=start_time, end=end_time, periods=num_segments)
-        time_labels = [t.strftime('%d.%m.%Y\n%H:%M') for t in time_range]
+        time_labels = [t.strftime('%d.%m.%Y') for t in time_range]
 
         ax.set_xticks(tick_indices)
         ax.set_xticklabels(time_labels, rotation=45, ha='right')
 
     # Adjust y-axis
-    y_max = max(data_left.max(), data_right.max() if data_right is not None else 0)
+    y_max = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
     ax.set_ylim(0, y_max * 1.2)
 
     ax.set_title(title)
-    ax.legend()
+    ax.legend(title="Parameters", loc="best")
     ax.set_xlabel("Time")
     ax.set_ylabel(f"Value ({left_unit})" if not right_unit else f"Value ({left_unit}, {right_unit})")
 
@@ -257,7 +294,53 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     plt.close(fig)
 
 
+# ADDED: Function to plot time-based periods
+def plot_period_stats(period_starts, max_vals, avg_vals, min_vals, title, param_name, unit, show_thresholds=False,
+                      thresholds=None):
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Check if data exists
+    if len(period_starts) == 0:
+        st.warning("⚠️ No valid data for the selected period")
+        return
+
+    # Format x-axis labels
+    time_labels = [t.strftime('%d.%m.%Y') for t in period_starts]
+
+    # Plot lines
+    ax.plot(time_labels, avg_vals, label=f"Average {param_name}", color="green", linewidth=1.5)
+
+    # Add threshold lines if applicable
+    if show_thresholds and thresholds:
+        for label, value in thresholds.items():
+            ax.axhline(y=value, color='yellow' if "UBA" in label else 'red', linestyle='--', linewidth=1.5,
+                       label=f"{label}: {value} µg/m³")
+
+    # Format the plot
+    ax.set_title(title)
+    ax.set_xlabel("Period Start Date")
+    ax.set_ylabel(f"Value ({unit})")
+    ax.tick_params(axis='x', rotation=45)
+    ax.legend()
+
+    st.pyplot(fig)
+
+    # Save and add download button
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=300, bbox_inches='tight')
+    buf.seek(0)
+    st.download_button(
+        label="📥 Download Period Plot",
+        data=buf,
+        file_name=f"{title.replace(' ', '_')}.png",
+        mime="image/png"
+    )
+    plt.close(fig)
+
+
 # Main logic
+# ✅ Corrected main block ending for your Streamlit app
+
 if data_list:
     try:
         # Process data in chunks if very large
@@ -276,85 +359,102 @@ if data_list:
         # Convert and handle timezone
         full_data['ISO8601'] = pd.to_datetime(full_data['ISO8601'], errors='coerce')
         if full_data['ISO8601'].dt.tz is None:
-            full_data['ISO8601'] = full_data['ISO8601'].dt.tz_localize('UTC').dt.tz_convert('Europe/Berlin')
+            try:
+                full_data['ISO8601'] = full_data['ISO8601'].dt.tz_localize('UTC').dt.tz_convert('Europe/Berlin')
+            except:
+                st.warning("⚠️ Timezone conversion failed, using naive timestamps")
 
         start_time = full_data['ISO8601'].min()
         end_time = full_data['ISO8601'].max()
 
         st.sidebar.header("Column Selection")
-        all_columns = full_data.columns.tolist()
+        all_columns = [col for col in full_data.columns if col != 'ISO8601']
         left_param = st.sidebar.selectbox("Select Left Column", all_columns, index=0)
         right_column_optional = st.sidebar.checkbox("Compare with Right Column")
         right_param = st.sidebar.selectbox("Select Right Column", all_columns,
-                                           index=1) if right_column_optional else None
+                                           index=min(1, len(all_columns) - 1)) if right_column_optional else None
 
         left_unit = get_unit_for_column(left_param)
         right_unit = get_unit_for_column(right_param) if right_param else None
 
         pm_type = st.sidebar.selectbox("Select PM Type", ["PM10.0", "PM2.5"])
         thresholds = threshold_values_pm10 if pm_type == "PM10.0" else threshold_values_pm25
-        show_threshold_lines = st.sidebar.checkbox("Show Threshold Lines for PM")
 
-        column_data_left = pd.to_numeric(full_data[left_param], errors="coerce").dropna()
-        column_data_right = pd.to_numeric(full_data[right_param], errors="coerce").dropna() if right_param else None
+        # Inside The sidebar
+        show_thresholds = {}
+        apply_thresholds = {}
 
+        with st.sidebar.expander(" PM Threshold Options", expanded=True):
+            st.markdown("Choose which PM thresholds to **display** as lines and which to **apply** for coloring the plot.")
 
+            for label, value in thresholds.items():
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    st.markdown(f"**{label}** ({value} µg/m³)")
+                with col2:
+                    show_thresholds[label] = st.checkbox("Show", value=True, key=f"show_{label}")
+                with col3:
+                    apply_thresholds[label] = st.checkbox("Apply", value=("WHO" in label), key=f"apply_{label}")
 
+        # Analyze period values
+        period_starts, maxVal_left, AvgVal_left, minVal_left = analyze_data_by_period(
+            full_data, left_param, 'ISO8601', period
+        )
 
+        if right_column_optional:
+            _, maxVal_right, AvgVal_right, minVal_right = analyze_data_by_period(
+                full_data, right_param, 'ISO8601', period
+            )
 
-        st.subheader("📈 Time Series Visualization")
+        # Plotting average values (no dots, only smoothed lines)
+        st.subheader("📈 Average Values Plot")
         create_gradient_plot(
-            data_left=column_data_left,
-            data_right=column_data_right,
-            title=f"{left_param} vs {right_param}" if right_param else left_param,
-            param_left=left_param,
-            param_right=right_param,
+            data_left=AvgVal_left,
+            data_right=AvgVal_right if right_column_optional else None,
+            title="Average Values",
+            param_left=f"S1. {left_param}",
+            param_right=f"S2. {right_param}" if right_column_optional else None,
             left_unit=left_unit,
             right_unit=right_unit,
-            show_thresholds=show_threshold_lines,
-            thresholds=thresholds,
-            start_time=start_time,
-            end_time=end_time
+            thresholds={k: v for k, v in thresholds.items() if show_thresholds.get(k)},
+            show_thresholds=any(show_thresholds.values()),
+            start_time=period_starts[0],
+            end_time=period_starts[-1]
         )
-        st.subheader("📊 Data Analysis")
-        # Calculate statistics
-        max_vals, avg_vals, min_vals, n_points = analyze_data(column_data_left, period)
 
-        if n_points > 0:
-            stats_df = pd.DataFrame({
-                'Statistic': ['Max', 'Average', 'Min'],
-                'Value': [max_vals.mean(), avg_vals.mean(), min_vals.mean()],
-                'Unit': [left_unit, left_unit, left_unit]
-            })
-            st.dataframe(stats_df.style.format({'Value': '{:.2f}'}))
-        # Show memory usage (for debugging)
-        if DEBUG:
-            st.sidebar.write(f"Data size: {len(full_data):,} rows")
-            st.sidebar.write(f"Memory usage: {full_data.memory_usage(deep=True).sum() / (1024 ** 2):.2f} MB")
+        # Statistics display
+        st.subheader(f"📊 Statistics for {left_param}")
+        st.write(f"Maximum Value: {np.max(maxVal_left):.2f} {left_unit}")
+        st.write(f"Minimum Value: {np.min(minVal_left):.2f} {left_unit}")
+        st.write(f"Average Value: {np.mean(AvgVal_left):.2f} {left_unit}")
 
-        # Clean up memory
-        gc.collect()
+        if right_column_optional:
+            st.subheader(f"📊 Statistics for {right_param}")
+            st.write(f"Maximum Value: {np.max(maxVal_right):.2f} {right_unit}")
+            st.write(f"Minimum Value: {np.min(minVal_right):.2f} {right_unit}")
+            st.write(f"Average Value: {np.mean(AvgVal_right):.2f} {right_unit}")
 
-    except MemoryError:
-        st.error("⚠️ The dataset is too large for available memory. Try sampling the data or using a smaller file.")
+        # Exceedance Calculation
+        calculate_exceedance = st.sidebar.checkbox("Calculate PM Exceedance")
+        if calculate_exceedance and any(show_thresholds.values()):
+            exceedance_results = {
+                label: sum(np.array(AvgVal_left) > value) / len(AvgVal_left) * 100
+                for label, value in thresholds.items() if show_thresholds.get(label, False)
+            }
+
+            st.subheader(f"📊 PM Exceedance for {left_param}")
+            for label, percentage in exceedance_results.items():
+                st.write(f"❌ **{label}** exceeded in **{percentage:.2f}%** of the time.")
+
+            if right_column_optional:
+                exceedance_results_right = {
+                    label: sum(np.array(AvgVal_right) > value) / len(AvgVal_right) * 100
+                    for label, value in thresholds.items() if show_thresholds.get(label, False)
+                }
+                st.subheader(f"📊 PM Exceedance for {right_param}")
+                for label, percentage in exceedance_results_right.items():
+                    st.write(f"❌ **{label}** exceeded in **{percentage:.2f}%** of the time.")
+
+    # ✅ This is the required 'except' to handle any issues during the main logic
     except Exception as e:
-        st.error(f"❌ Error processing data: {str(e)}")
-else:
-    st.info("👈 Upload a CSV file or paste a Google Drive link to begin.")
-
-# Troubleshooting section
-st.markdown("---")
-st.markdown("### Troubleshooting Guide")
-st.markdown("""
-1. **Google Drive Links Not Working?**
-   - Ensure the file is shared with "Anyone with the link" permission
-   - Try the direct download link format: `https://drive.google.com/uc?id=FILE_ID`
-
-2. **Large Files (>500MB)?**
-   - Downloads may take several minutes
-   - Consider preprocessing your data to reduce file size
-
-3. **Graphs Not Showing?**
-   - Check your data contains numeric columns
-   - Verify the 'ISO8601' column exists for timestamps
-""")
+        st.error(f"❌ Unexpected error: {str(e)}")
