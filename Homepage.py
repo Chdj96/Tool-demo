@@ -1,43 +1,31 @@
 import streamlit as st
 from PIL import Image
 import os
-import requests
-from io import BytesIO
 
-# Set up page configuration
+# Page configuration
 st.set_page_config(page_title="90 Green", layout="wide")
 
-def load_image(image_path, image_url=None, caption=""):
+# Base path to your image folder
+base_path = r"D:\chrf\pythonProject1\tool\images"
+
+def load_local_image(image_filename):
     """
-    Robust image loader with local and remote fallback
+    Load image from local file path.
     """
-    try:
-        # First try local file
-        if os.path.exists(image_path):
-            img = Image.open(image_path)
-            return img
-        # Fallback to URL if provided
-        elif image_url:
-            response = requests.get(image_url)
-            img = Image.open(BytesIO(response.content))
-            return img
-        else:
-            st.error(f"Image not found at: {image_path}")
-            return None
-    except Exception as e:
-        st.error(f"Error loading image: {str(e)}")
+    image_path = os.path.join(base_path, image_filename)
+    if os.path.exists(image_path):
+        return Image.open(image_path)
+    else:
+        st.error(f"❌ Image not found: {image_path}")
         return None
 
 # --- Logo Loading ---
-logo = load_image(
-    image_path=os.path.join("images", "Logo"),
-    image_url="https://raw.githubusercontent.com/yourusername/yourrepo/main/images/Logo.jpg"
-)
+logo = load_local_image("Logo.jpg")
 
 if logo:
     st.sidebar.image(logo, use_container_width=True)
 else:
-    st.sidebar.warning("Logo not available")
+    st.sidebar.warning("⚠️ Logo not available")
 
 # --- Main Content ---
 st.title("Welcome to 90green")
@@ -47,21 +35,16 @@ st.write(
     "wir den Wandel hin zu sauberer Luft und klimafreundlichen Städten voran."
 )
 
-# --- Main Image Loading ---
-main_image = load_image(
-    image_path=os.path.join("images", "clean16"),  # Note: corrected from clean1s.jpg
-    image_url="https://raw.githubusercontent.com/yourusername/yourrepo/main/images/clean16.jpg"
-)
+# --- Main Image ---
+main_image = load_local_image("Kopie von clean16")
 
 if main_image:
     st.image(main_image,
              caption="Nachhaltigkeit messbar machen",
              use_column_width=True)
 else:
-    st.warning("Main content image not available")
-    # Optional: Add placeholder image
-    # st.image("placeholder.jpg")
+    st.warning("⚠️ Main image not available")
 
-# Footer
+# --- Footer ---
 st.markdown("---")
 st.write("Developed by **90green** | Data-Driven Urban Sustainability")
