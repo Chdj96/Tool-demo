@@ -1,23 +1,23 @@
 import streamlit as st
- import numpy as np
- import pandas as pd
- import matplotlib.pyplot as plt
- import io
- import tempfile
- import folium
- from streamlit_folium import folium_static
- from PIL import Image
- from selenium import webdriver
- from selenium.webdriver.chrome.options import Options
- import time
- import requests
- import os
- import gdown
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import io
+import tempfile
+import folium
+from streamlit_folium import folium_static
+from PIL import Image
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+import time
+import requests
+import os
+import gdown
  
  # Streamlit setup
- st.set_page_config(page_title="Multi-Parameter Analysis Tool", layout="wide")
- st.title("🌡️ Multi-Parameter Analysis Tool")
- st.write("Upload your data file to analyze various parameters such as humidity, temperature, NOx, VOC, and PM.")
+st.set_page_config(page_title="Multi-Parameter Analysis Tool", layout="wide")
+st.title("🌡️ Multi-Parameter Analysis Tool")
+st.write("Upload your data file to analyze various parameters such as humidity, temperature, NOx, VOC, and PM.")
  
  # Debug toggle
  DEBUG = st.sidebar.checkbox("Enable Debug Logs", value=False)
