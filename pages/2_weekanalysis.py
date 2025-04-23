@@ -273,5 +273,102 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
         mime="image/png"
     )
     plt.close(fig)
-
-# Your main app logic continues from here...
+ # ========== MAIN LOGIC FOR DATA PROCESSING ==========
+ if data_list:
+     data = pd.concat(data_list, ignore_index=True)
+ 
+     if 'ISO8601' not in data.columns:
+         st.error("❌ Your dataset must contain an 'ISO8601' column.")
+         st.stop()
+ 
+     data['ISO8601'] = pd.to_datetime(data['ISO8601'], errors='coerce')
+     data.dropna(subset=['ISO8601'], inplace=True)
+ 
+     if data['ISO8601'].dt.tz is None:
+         data['ISO8601'] = data['ISO8601'].dt.tz_localize('UTC').dt.tz_convert('Europe/Berlin')
+ 
+     start_time_column = data['ISO8601']
+ 
+     st.sidebar.header("Column Selection")
+     all_columns = [col for col in data.columns if col != 'ISO8601']
+ 
+     left_param = st.sidebar.selectbox("Select Left Column", all_columns, index=0)
+     right_column_optional = st.sidebar.checkbox("Compare with Right Column")
+ 
+     right_param = None
+     if right_column_optional:
+         right_param = st.sidebar.selectbox("Select Right Column", all_columns, index=1)
+ 
+     left_unit = get_unit_for_column(left_param)
+     right_unit = get_unit_for_column(right_param) if right_param else None
+ 
+     pm_type = st.sidebar.selectbox("Select PM Type", ["PM10.0", "PM2.5"])
+     thresholds = threshold_values_pm10 if pm_type == "PM10.0" else threshold_values_pm25
+ 
+     # Threshold display/apply config
+     show_thresholds = {}
+     apply_thresholds = {}
+ 
+     with st.sidebar.expander("PM Threshold Options", expanded=True):
+         for label, value in thresholds.items():
+             col1, col2, col3 = st.columns([2, 1, 1])
+             with col1:
+                 st.markdown(f"**{label}** ({value} µg/m³)")
+             with col2:
+                 show_thresholds[label] = st.checkbox("Show", value=True, key=f"show_{label}")
+             with col3:
+                 apply_thresholds[label] = st.checkbox("Apply", value=("WHO" in label), key=f"apply_{label}")
+ 
+     column_data_left = pd.to_numeric(data[left_param], errors="coerce").dropna()
+     maxVal_left, AvgVal_left, minVal_left, _ = analyze_data(column_data_left, period)
+ 
+     column_data_right = None
+     if right_param:
+         column_data_right = pd.to_numeric(data[right_param], errors="coerce").dropna()
+         maxVal_right, AvgVal_right, minVal_right, _ = analyze_data(column_data_right, period)
+ 
+     start_time = start_time_column.min()
+     end_time = start_time_column.max()
+ 
+     st.subheader("📈 Average Values Plot")
+     create_gradient_plot(
+         data_left=AvgVal_left,
+         data_right=AvgVal_right if right_column_optional else None,
+         title="Average Values",
+         param_left=f"S1. {left_param}",
+         param_right=f"S2. {right_param}" if right_param else None,
+         left_unit=left_unit,
+         right_unit=right_unit,
+         thresholds={k: v for k, v in thresholds.items() if show_thresholds.get(k)},
+         show_thresholds=any(show_thresholds.values()),
+         start_time=start_time,
+         end_time=end_time
+     )
+ 
+     # Display stats
+     st.subheader(f"📊 Statistics for {left_param}")
+     st.write(f"Maximum Value: {np.max(maxVal_left):.2f} {left_unit}")
+     st.write(f"Minimum Value: {np.min(minVal_left):.2f} {left_unit}")
+     st.write(f"Average Value: {np.mean(AvgVal_left):.2f} {left_unit}")
+ 
+     if right_param:
+         st.subheader(f"📊 Statistics for {right_param}")
+         st.write(f"Maximum Value: {np.max(maxVal_right):.2f} {right_unit}")
+         st.write(f"Minimum Value: {np.min(minVal_right):.2f} {right_unit}")
+         st.write(f"Average Value: {np.mean(AvgVal_right):.2f} {right_unit}")
+ 
+     # Exceedance Calculation
+     if st.sidebar.checkbox("Calculate PM Exceedance") and any(show_thresholds.values()):
+         st.subheader(f"📊 PM Exceedance for {left_param}")
+         for label, value in thresholds.items():
+             if show_thresholds.get(label):
+                 percent = np.sum(AvgVal_left > value) / len(AvgVal_left) * 100
+                 st.write(f"❌ **{label}** exceeded in **{percent:.2f}%** of the time.")
+ 
+         if right_param:
+             st.subheader(f"📊 PM Exceedance for {right_param}")
+             for label, value in thresholds.items():
+                 if show_thresholds.get(label):
+                     percent = np.sum(AvgVal_right > value) / len(AvgVal_right) * 100
+                     st.write(f"❌ **{label}** exceeded in **{percent:.2f}%** of the time.")
+ else:
