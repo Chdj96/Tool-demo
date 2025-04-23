@@ -280,52 +280,55 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     )
     plt.close(fig)
 
-# ========== MAIN LOGIC FOR DATA PROCESSING ==========
+
 # MAIN LOGIC
-if uploaded_file:
-    data = pd.read_csv(uploaded_file)
-    data = fill_missing_values_df(data)  # Clean missing values
-    st.success("File uploaded and cleaned successfully!")
+if data_list:
+    for idx, data in enumerate(data_list):
+        data = fill_missing_values_df(data)  # Clean missing values
+        st.success(f"✅ File {idx+1} cleaned successfully!")
 
-    data['ISO8601'] = pd.to_datetime(data['ISO8601'], errors='coerce')
-    data.dropna(subset=['ISO8601'], inplace=True)
+        # Now continue processing each `data`...
+        data['ISO8601'] = pd.to_datetime(data['ISO8601'], errors='coerce')
+        data.dropna(subset=['ISO8601'], inplace=True)
 
-    if data['ISO8601'].dt.tz is None:
-        data['ISO8601'] = data['ISO8601'].dt.tz_localize('UTC').dt.tz_convert('Europe/Berlin')
+        if data['ISO8601'].dt.tz is None:
+            data['ISO8601'] = data['ISO8601'].dt.tz_localize('UTC').dt.tz_convert('Europe/Berlin')
 
-    start_time_column = data['ISO8601']
+        start_time_column = data['ISO8601']
 
-    st.sidebar.header("Column Selection")
-    all_columns = [col for col in data.columns if col != 'ISO8601']
+        # sidebar selections
+        st.sidebar.header(f"Column Selection for File {idx+1}")
+        all_columns = [col for col in data.columns if col != 'ISO8601']
 
-    left_param = st.sidebar.selectbox("Select Left Column", all_columns, index=0)
-    right_column_optional = st.sidebar.checkbox("Compare with Right Column")
+        left_param = st.sidebar.selectbox(f"Select Left Column (File {idx+1})", all_columns, index=0, key=f"left_{idx}")
+        right_column_optional = st.sidebar.checkbox(f"Compare with Right Column (File {idx+1})", key=f"right_optional_{idx}")
 
-    right_param = None
-    if right_column_optional:
-        right_param = st.sidebar.selectbox("Select Right Column", all_columns, index=1)
+        right_param = None
+        if right_column_optional:
+            right_param = st.sidebar.selectbox(f"Select Right Column (File {idx+1})", all_columns, index=1, key=f"right_{idx}")
 
-    left_unit = get_unit_for_column(left_param)
-    right_unit = get_unit_for_column(right_param) if right_param else None
+        left_unit = get_unit_for_column(left_param)
+        right_unit = get_unit_for_column(right_param) if right_param else None
 
-    pm_type = st.sidebar.selectbox("Select PM Type", ["PM10.0", "PM2.5"])
-    thresholds = threshold_values_pm10 if pm_type == "PM10.0" else threshold_values_pm25
+        pm_type = st.sidebar.selectbox(f"Select PM Type (File {idx+1})", ["PM10.0", "PM2.5"], key=f"pm_type_{idx}")
+        thresholds = threshold_values_pm10 if pm_type == "PM10.0" else threshold_values_pm25
 
-    # Threshold display/apply config
-    show_thresholds = {}
-    apply_thresholds = {}
+        # Threshold config
+        show_thresholds = {}
+        apply_thresholds = {}
 
-    with st.sidebar.expander("PM Threshold Options", expanded=True):
-        for label, value in thresholds.items():
-            col1, col2, col3 = st.columns([2, 1, 1])
-            with col1:
-                st.markdown(f"**{label}** ({value} µg/m³)")
-            with col2:
-                show_thresholds[label] = st.checkbox("Show", value=True, key=f"show_{label}")
-            with col3:
-                apply_thresholds[label] = st.checkbox("Apply", value=("WHO" in label), key=f"apply_{label}")
+        with st.sidebar.expander(f"PM Threshold Options (File {idx+1})", expanded=True):
+            for label, value in thresholds.items():
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    st.markdown(f"**{label}** ({value} µg/m³)")
+                with col2:
+                    show_thresholds[label] = st.checkbox("Show", value=True, key=f"show_{label}_{idx}")
+                with col3:
+                    apply_thresholds[label] = st.checkbox("Apply", value=("WHO" in label), key=f"apply_{label}_{idx}")
 
-    column_data_left = pd.to_numeric(data[left_param], errors="coerce").dropna()
+        column_data_left = pd.to_numeric(data[left_param], errors='coerce')
+
     maxVal_left, AvgVal_left, minVal_left, _ = analyze_data(column_data_left, period)
 
     column_data_right = None
