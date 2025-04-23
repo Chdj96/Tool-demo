@@ -11,16 +11,11 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 import time
 import requests
-import os
-import gdown
 
 # Streamlit setup
 st.set_page_config(page_title="Multi-Parameter Analysis Tool", layout="wide")
 st.title("🌡️ Multi-Parameter Analysis Tool")
 st.write("Upload your data file to analyze various parameters such as humidity, temperature, NOx, VOC, and PM.")
-
-# Debug toggle
-DEBUG = st.sidebar.checkbox("Enable Debug Logs", value=False)
 
 def load_image_from_url(url):
     response = requests.get(url, stream=True)
@@ -36,82 +31,17 @@ try:
     st.sidebar.image(logo)
 except Exception as e:
     st.sidebar.warning(f"⚠️ Could not load logo: {str(e)}")
-
-# Sidebar: File uploader and GDrive link
+# Clean missing values in a dataframe
+def fill_missing_values_df(df):
+    """
+    Fill missing values in the DataFrame using forward fill,
+    then backward fill as a fallback.
+    """
+    return df.fillna(method='ffill').fillna(method='bfill')
+# Sidebar Inputs
 st.sidebar.header("User Inputs")
-uploaded_files = st.sidebar.file_uploader("Upload CSV Files (One Month)", type=["csv"], accept_multiple_files=True)
-google_drive_link = st.sidebar.text_input("Or enter Google Drive link to a CSV file:")
-period = st.sidebar.slider("Select Time Interval (minutes)", 1, 60, 180)
-
-# Enhanced Google Drive downloader with debugging
-def download_large_csv_from_gdrive(gdrive_url):
-    try:
-        if DEBUG: st.write("🔍 Starting Google Drive download process...")
-
-        if "id=" in gdrive_url:
-            file_id = gdrive_url.split("id=")[-1].split("&")[0]
-        elif "file/d/" in gdrive_url:
-            file_id = gdrive_url.split("/file/d/")[1].split("/")[0]
-        else:
-            file_id = gdrive_url.split("/")[-1]
-
-        if DEBUG: st.write(f"🔍 Extracted File ID: {file_id}")
-
-        download_url = f"https://drive.google.com/uc?id={file_id}"
-        output_path = "temp_downloaded_file.csv"
-
-        with st.spinner('Downloading large file... This may take several minutes for files >200MB'):
-            gdown.download(download_url, output_path, quiet=False)
-
-            if not os.path.exists(output_path):
-                st.error("❌ File download failed - no file was created")
-                return None
-
-            file_size = os.path.getsize(output_path) / (1024 * 1024)
-            if DEBUG: st.write(f"🔍 Downloaded {file_size:.1f} MB")
-
-        chunks = []
-        for chunk in pd.read_csv(output_path, chunksize=100000):
-            chunks.append(chunk)
-
-        data = pd.concat(chunks)
-        os.remove(output_path)
-
-        for col in data.select_dtypes(include=['float64']):
-            data[col] = pd.to_numeric(data[col], downcast='float')
-        for col in data.select_dtypes(include=['int64']):
-            data[col] = pd.to_numeric(data[col], downcast='integer')
-
-        if DEBUG:
-            st.write("🔍 Data preview:", data.head())
-            st.write(f"🔍 Memory usage: {data.memory_usage(deep=True).sum() / (1024 ** 2):.2f} MB")
-
-        return data
-
-    except Exception as e:
-        st.error(f"❌ Download failed with error: {str(e)}")
-        return None
-
-# Handle Google Drive link or uploaded files
-data_list = []
-
-if google_drive_link:
-    gdrive_data = download_large_csv_from_gdrive(google_drive_link)
-    if gdrive_data is not None:
-        data_list = [gdrive_data]
-        st.success("✅ File loaded from Google Drive!")
-else:
-    if uploaded_files:
-        for file in uploaded_files:
-            try:
-                chunks = []
-                for chunk in pd.read_csv(file, chunksize=100000):
-                    chunks.append(chunk)
-                data_list.append(pd.concat(chunks))
-            except Exception as e:
-                st.error(f"❌ Error reading {file.name}: {str(e)}")
-        if data_list:
-            st.success(f"✅ {len(uploaded_files)} files uploaded and combined!")
+uploaded_file = st.sidebar.file_uploader("Upload CSV File", type=["csv"])
+period = st.sidebar.slider("Select Time Interval (Minutes)", 1, 60, 10)
 
 # Map Settings
 st.sidebar.header("Map Settings")
@@ -119,12 +49,13 @@ latitude = st.sidebar.number_input("Latitude", value=52.5200, format="%.6f")
 longitude = st.sidebar.number_input("Longitude", value=13.4050, format="%.6f")
 zoom_level = st.sidebar.slider("Zoom Level", 1, 18, 12)
 
-# Display interactive map
+# Display Map
 st.subheader("Interactive Map")
 map_object = folium.Map(location=[latitude, longitude], zoom_start=zoom_level)
 folium.Marker([latitude, longitude], popup="Selected Location").add_to(map_object)
 folium_static(map_object)
 
+# Screenshot
 def save_map_screenshot():
     options = Options()
     options.add_argument("--headless")
@@ -134,7 +65,6 @@ def save_map_screenshot():
 
     temp_html = tempfile.NamedTemporaryFile(delete=False, suffix=".html")
     map_object.save(temp_html.name)
-    temp_html.close()
     driver.get("file://" + temp_html.name)
     time.sleep(2)
 
@@ -146,22 +76,9 @@ def save_map_screenshot():
 if st.button("📥 Download Map"):
     map_path = save_map_screenshot()
     with open(map_path, "rb") as file:
-        st.download_button(
-            label="Download Map as Image",
-            data=file,
-            file_name="map.png",
-            mime="image/png"
-        )
+        st.download_button("Download Map as Image", file, file_name="map.png", mime="image/png")
 
-# Thresholds and units
-parameter_units = {
-    "Humidity": "%",
-    "Temperature": "°C",
-    "NOx": "ppm",
-    "VOC": "ppb",
-    "PM": "µg/m³",
-}
-
+# Thresholds
 threshold_values_pm10 = {
     "Daily Average (UBA)": 50,
     "Daily Average (WHO Recommendation)": 45,
@@ -170,40 +87,40 @@ threshold_values_pm25 = {
     "Annual Average (UBA)": 25,
     "Daily Average (WHO Recommendation)": 15,
 }
+parameter_units = {
+    "Humidity": "%",
+    "Temperature": "°C",
+    "NOx": "ppm",
+    "VOC": "ppb",
+    "PM": "µg/m³",
+}
 
+# Helper functions
 def analyze_data(column_data, period):
-    length = round(period * 60)
-    total = len(column_data)
-    segments = int(np.floor(total / length))
+    segment_len = round(period * 60)
+    total_samples = len(column_data)
+    points = int(np.floor(total_samples / segment_len))
+    max_values = np.zeros(points)
+    avg_values = np.zeros(points)
+    min_values = np.zeros(points)
 
-    max_vals = np.zeros(segments)
-    avg_vals = np.zeros(segments)
-    min_vals = np.zeros(segments)
+    for i in range(points):
+        segment = column_data[i * segment_len:(i + 1) * segment_len]
+        max_values[i] = np.max(segment)
+        avg_values[i] = np.mean(segment)
+        min_values[i] = np.min(segment)
 
-    for i in range(segments):
-        seg = column_data[i * length: (i + 1) * length]
-        max_vals[i] = np.max(seg)
-        avg_vals[i] = np.mean(seg)
-        min_vals[i] = np.min(seg)
+    return max_values, avg_values, min_values, points
 
-    return max_vals, avg_vals, min_vals, segments
-
-def get_unit_for_column(column_name):
+def get_unit(column):
     for param, unit in parameter_units.items():
-        if param.lower() in column_name.lower():
+        if param.lower() in column.lower():
             return unit
     return "Value"
-# Time rounding helper used in axis formatting
-from datetime import datetime
-
-def round_time(dt, base=30):
-    """Rounds a datetime object to the nearest `base` minutes."""
-    new_minute = (dt.minute // base) * base
-    return dt.replace(minute=new_minute, second=0, microsecond=0)
 
 def create_gradient_plot(data_left, data_right=None, title="", param_left="", param_right=None, left_unit="",
-                         right_unit=None, show_thresholds=False, thresholds=None, start_time=None, end_time=None,
-                         rounding_base=30):
+                         right_unit=None, show_thresholds=False, apply_thresholds=None, thresholds=None,
+                         start_time=None, end_time=None, rounding_base=30):
     fig, ax = plt.subplots(figsize=(10, 6))
 
     param_left_clean = param_left.replace("Left_", "S1_").replace("left_", "S1_")
@@ -212,106 +129,97 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     x = np.arange(len(data_left))
     y = np.array(data_left)
 
-    ax.plot(x, y, label=f"{param_left_clean} ({left_unit})", color="green", linewidth=2)
+    active_thresholds = {k: v for k, v in thresholds.items() if apply_thresholds and apply_thresholds.get(k)}
+    min_threshold = min(active_thresholds.values()) if active_thresholds else None
 
-    who_threshold = thresholds.get("Daily Average (WHO Recommendation)", None) if show_thresholds and thresholds else None
+    prev_above = y[0] > min_threshold if min_threshold is not None else False
+    for i in range(len(x) - 1):
+        current_above = y[i + 1] > min_threshold if min_threshold is not None else False
+        if prev_above == current_above:
+            color = 'red' if current_above else 'green'
+            ax.plot([x[i], x[i + 1]], [y[i], y[i + 1]], color=color, linewidth=2, label=param_left_clean if i == 0 else "")
+        else:
+            x_inter = x[i] + (min_threshold - y[i]) / (y[i + 1] - y[i]) if min_threshold is not None else x[i]
+            ax.plot([x[i], x_inter], [y[i], min_threshold], color='green' if not prev_above else 'red', linewidth=2, label=param_left_clean if i == 0 else "")
+            ax.plot([x_inter, x[i + 1]], [min_threshold, y[i + 1]], color='red' if not prev_above else 'green', linewidth=2)
+        prev_above = current_above
 
-    if who_threshold is not None:
-        prev_above = y[0] > who_threshold
-        for i in range(len(x) - 1):
-            current_above = y[i + 1] > who_threshold
-            if prev_above and current_above:
-                color = 'red'
-            elif not prev_above and not current_above:
-                color = 'green'
-            else:
-                x_intersect = x[i] + (who_threshold - y[i]) / (y[i + 1] - y[i])
-                ax.plot([x[i], x_intersect], [y[i], who_threshold],
-                        color='green' if not prev_above else 'red', linewidth=2)
-                ax.plot([x_intersect, x[i + 1]], [who_threshold, y[i + 1]],
-                        color='red' if not prev_above else 'green', linewidth=2)
-                prev_above = current_above
-                continue
-            ax.plot([x[i], x[i + 1]], [y[i], y[i + 1]], color=color, linewidth=2)
-            prev_above = current_above
+    for label, value in thresholds.items():
+        if show_thresholds and show_thresholds.get(label):
+            color = 'orange' if "UBA" in label else 'red'
+            ax.axhline(y=value, color=color, linestyle='--', linewidth=1.5, label=f"{label}: {value} µg/m³")
 
-    if data_right is not None:
-        ax.plot(data_right, label=f"{param_right_clean} ({right_unit})", linestyle="solid", color="blue")
-        ax.fill_between(range(len(data_right)), data_right, alpha=0.1, color="skyblue")
+        # Generate time range
+        time_range = pd.date_range(start=start_time, end=end_time, periods=len(data_left))
 
-    if show_thresholds and thresholds:
-        for label, value in thresholds.items():
-            ax.axhline(y=value, color='yellow' if "UBA" in label else 'red', linestyle='--', linewidth=1.5,
-                       label=f"{label}: {value} µg/m³")
-# Time axis formatting
-    num_segments = 15
-    tick_indices = np.linspace(0, len(data_left) - 1, num_segments, dtype=int)
-    time_range = pd.date_range(start=start_time, end=end_time, periods=num_segments)
-    time_labels = [round_time(t, base=rounding_base).strftime('%d.%m.%Y %H:%M') for t in time_range]
-    time_labels[-1] = time_range[-1].strftime('%Y-%m-%d\n23:59')
+        # Calculate regular hour intervals (every 3 hours)
+        hour_interval = 2
+        num_intervals = int(24 / hour_interval)
+        tick_indices = np.linspace(0, len(data_left) - 1, num_intervals).astype(int)
 
-    ax.set_xticks(tick_indices)
-    ax.set_xticklabels(time_labels, rotation=45, ha='right')
-    # Adjust y-axis
-    mean_value = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
-    ax.set_ylim(0, mean_value * 1.2)
+        # Format time labels with date and regular hour intervals
+        time_labels = [time_range[i].strftime('%Y-%m-%d\n%H:00') for i in tick_indices]
 
-    ax.set_title(title)
-    ax.legend(title="Parameters", loc="best")
+        # Set the last label to 23:59
+        time_labels[-1] = time_range[-1].strftime('%Y-%m-%d\n23:59')
+
+        ax.set_xticks(tick_indices)
+        ax.set_xticklabels(time_labels, rotation=45, ha='right')
+
+        # Extend Y-axis above the maximum value
+        mean_value = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
+        ax.set_ylim(0, mean_value * 1.2)  # Extend 10% above max
+
+
+
     ax.set_xlabel("Time")
     ax.set_ylabel(f"Value ({left_unit})" if not right_unit else f"Value ({left_unit}, {right_unit})")
-
+    ax.set_title(title)
+    ax.legend()
     st.pyplot(fig)
 
-    # Save and add download button
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=300)
     buf.seek(0)
-    st.download_button(
-        label="📥 Download Plot",
-        data=buf,
-        file_name=f"{title.replace(' ', '_')}.png",
-        mime="image/png"
-    )
+    st.download_button("📥 Download Plot", data=buf, file_name=f"{title}.png", mime="image/png")
     plt.close(fig)
 
-# ========== MAIN LOGIC FOR DATA PROCESSING ==========
-if data_list:
-    data = pd.concat(data_list, ignore_index=True)
 
-    if 'ISO8601' not in data.columns:
-        st.error("❌ Your dataset must contain an 'ISO8601' column.")
+
+# MAIN LOGIC
+if uploaded_file:
+    data = pd.read_csv(uploaded_file)
+    data = fill_missing_values_df(data)  # Clean missing values
+    st.success("File uploaded and cleaned successfully!")
+
+
+    if 'ISO8601' in data.columns:
+        data['ISO8601'] = pd.to_datetime(data['ISO8601'], errors='coerce')
+        if data['ISO8601'].dt.tz is None:
+            data['ISO8601'] = data['ISO8601'].dt.tz_localize('UTC').dt.tz_convert('Europe/Berlin')
+        time_column = data['ISO8601']
+    else:
+        st.error("The dataset must contain a 'ISO8601' column.")
         st.stop()
 
-    data['ISO8601'] = pd.to_datetime(data['ISO8601'], errors='coerce')
-    data.dropna(subset=['ISO8601'], inplace=True)
-
-    if data['ISO8601'].dt.tz is None:
-        data['ISO8601'] = data['ISO8601'].dt.tz_localize('UTC').dt.tz_convert('Europe/Berlin')
-
-    start_time_column = data['ISO8601']
-
     st.sidebar.header("Column Selection")
-    all_columns = [col for col in data.columns if col != 'ISO8601']
+    columns = data.columns.tolist()
+    left_param = st.sidebar.selectbox("Select Left Column", columns, index=0)
+    right_enabled = st.sidebar.checkbox("Compare with Right Column")
+    right_param = st.sidebar.selectbox("Select Right Column", columns, index=1) if right_enabled else None
 
-    left_param = st.sidebar.selectbox("Select Left Column", all_columns, index=0)
-    right_column_optional = st.sidebar.checkbox("Compare with Right Column")
-
-    right_param = None
-    if right_column_optional:
-        right_param = st.sidebar.selectbox("Select Right Column", all_columns, index=1)
-
-    left_unit = get_unit_for_column(left_param)
-    right_unit = get_unit_for_column(right_param) if right_param else None
+    left_unit = get_unit(left_param)
+    right_unit = get_unit(right_param) if right_enabled else None
 
     pm_type = st.sidebar.selectbox("Select PM Type", ["PM10.0", "PM2.5"])
     thresholds = threshold_values_pm10 if pm_type == "PM10.0" else threshold_values_pm25
-
-    # Threshold display/apply config
+    # Inside The sidebar
     show_thresholds = {}
     apply_thresholds = {}
 
-    with st.sidebar.expander("PM Threshold Options", expanded=True):
+    with st.sidebar.expander(" PM Threshold Options", expanded=True):
+        st.markdown("Choose which PM thresholds to **display** as lines and which to **apply** for coloring the plot.")
+
         for label, value in thresholds.items():
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
@@ -321,57 +229,51 @@ if data_list:
             with col3:
                 apply_thresholds[label] = st.checkbox("Apply", value=("WHO" in label), key=f"apply_{label}")
 
-    column_data_left = pd.to_numeric(data[left_param], errors="coerce").dropna()
-    maxVal_left, AvgVal_left, minVal_left, _ = analyze_data(column_data_left, period)
+    data_left = pd.to_numeric(data[left_param], errors="coerce")
+    maxL, avgL, minL, _ = analyze_data(data_left, period)
 
-    column_data_right = None
-    if right_param:
-        column_data_right = pd.to_numeric(data[right_param], errors="coerce").dropna()
-        maxVal_right, AvgVal_right, minVal_right, _ = analyze_data(column_data_right, period)
+    if right_enabled:
+        data_right = pd.to_numeric(data[right_param], errors="coerce")
+        maxR, avgR, minR, _ = analyze_data(data_right, period)
 
-    start_time = start_time_column.min()
-    end_time = start_time_column.max()
+    start_time = time_column.min()
+    end_time = time_column.max()
 
-    st.subheader("📈 Average Values Plot")
+    st.subheader("Average Values")
     create_gradient_plot(
-        data_left=AvgVal_left,
-        data_right=AvgVal_right if right_column_optional else None,
+        data_left=avgL,
+        data_right=avgR if right_enabled else None,
         title="Average Values",
-        param_left=f"S1. {left_param}",
-        param_right=f"S2. {right_param}" if right_param else None,
+        param_left=left_param,
+        param_right=right_param if right_enabled else None,
         left_unit=left_unit,
         right_unit=right_unit,
-        thresholds={k: v for k, v in thresholds.items() if show_thresholds.get(k)},
-        show_thresholds=any(show_thresholds.values()),
+        thresholds=thresholds,
+        apply_thresholds=apply_thresholds,
+        show_thresholds=show_thresholds,
         start_time=start_time,
         end_time=end_time
     )
 
-    # Display stats
-    st.subheader(f"📊 Statistics for {left_param}")
-    st.write(f"Maximum Value: {np.max(maxVal_left):.2f} {left_unit}")
-    st.write(f"Minimum Value: {np.min(minVal_left):.2f} {left_unit}")
-    st.write(f"Average Value: {np.mean(AvgVal_left):.2f} {left_unit}")
+    st.subheader(f"Statistics for {left_param}")
+    st.write(f"Max: {np.max(maxL):.2f} {left_unit}")
+    st.write(f"Min: {np.min(minL):.2f} {left_unit}")
+    st.write(f"Average: {np.mean(avgL):.2f} {left_unit}")
 
-    if right_param:
-        st.subheader(f"📊 Statistics for {right_param}")
-        st.write(f"Maximum Value: {np.max(maxVal_right):.2f} {right_unit}")
-        st.write(f"Minimum Value: {np.min(minVal_right):.2f} {right_unit}")
-        st.write(f"Average Value: {np.mean(AvgVal_right):.2f} {right_unit}")
+    if right_enabled:
+        st.subheader(f"Statistics for {right_param}")
+        st.write(f"Max: {np.max(maxR):.2f} {right_unit}")
+        st.write(f"Min: {np.min(minR):.2f} {right_unit}")
+        st.write(f"Average: {np.mean(avgR):.2f} {right_unit}")
 
-    # Exceedance Calculation
-    if st.sidebar.checkbox("Calculate PM Exceedance") and any(show_thresholds.values()):
-        st.subheader(f"📊 PM Exceedance for {left_param}")
+    if st.sidebar.checkbox("Calculate PM Exceedance"):
+        st.subheader(f"📊 PM Exceedance Calculation for {left_param}")
         for label, value in thresholds.items():
-            if show_thresholds.get(label):
-                percent = np.sum(AvgVal_left > value) / len(AvgVal_left) * 100
-                st.write(f"❌ **{label}** exceeded in **{percent:.2f}%** of the time.")
+            pct = sum(avgL > value) / len(avgL) * 100
+            st.write(f"❌ **{label}:** Exceeded in **{pct:.2f}%** of the time.")
 
-        if right_param:
-            st.subheader(f"📊 PM Exceedance for {right_param}")
+        if right_enabled:
+            st.subheader(f"📊 PM Exceedance Calculation for {right_param}")
             for label, value in thresholds.items():
-                if show_thresholds.get(label):
-                    percent = np.sum(AvgVal_right > value) / len(AvgVal_right) * 100
-                    st.write(f"❌ **{label}** exceeded in **{percent:.2f}%** of the time.")
-else:
-    st.warning("Please upload a CSV file or provide a Google Drive link to start.")
+                pct = sum(avgR > value) / len(avgR) * 100
+                st.write(f"❌ **{label}:** Exceeded in **{pct:.2f}%** of the time.")
