@@ -37,7 +37,13 @@ try:
     st.sidebar.image(logo)
 except Exception as e:
     st.sidebar.warning(f"⚠️ Could not load logo: {str(e)}")
-
+# Clean missing values in a dataframe
+def fill_missing_values_df(df):
+    """
+    Fill missing values in the DataFrame using forward fill,
+    then backward fill as a fallback.
+    """
+    return df.fillna(method='ffill').fillna(method='bfill')
 # Sidebar: File uploader and GDrive link
 st.sidebar.header("User Inputs")
 uploaded_files = st.sidebar.file_uploader("Upload CSV Files (One Month)", type=["csv"], accept_multiple_files=True)
@@ -275,12 +281,11 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     plt.close(fig)
 
 # ========== MAIN LOGIC FOR DATA PROCESSING ==========
-if data_list:
-    data = pd.concat(data_list, ignore_index=True)
-
-    if 'ISO8601' not in data.columns:
-        st.error("❌ Your dataset must contain an 'ISO8601' column.")
-        st.stop()
+# MAIN LOGIC
+if uploaded_file:
+    data = pd.read_csv(uploaded_file)
+    data = fill_missing_values_df(data)  # Clean missing values
+    st.success("File uploaded and cleaned successfully!")
 
     data['ISO8601'] = pd.to_datetime(data['ISO8601'], errors='coerce')
     data.dropna(subset=['ISO8601'], inplace=True)
