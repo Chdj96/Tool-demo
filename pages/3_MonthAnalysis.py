@@ -465,3 +465,47 @@ if data_list:
     # ✅ This is the required 'except' to handle any issues during the main logic
     except Exception as e:
         st.error(f"❌ Unexpected error: {str(e)}")
+
+#ChatBot
+@st.cache_resource
+def load_knowledge_faq():
+     return [
+        {
+            "question": "How long does a typical air quality measurement take?",
+            "answer": "Measurement campaigns usually range from a single day up to many months depending on project scope."
+        },
+        {
+            "question": "Do you provide recommendations after the data analysis?",
+            "answer": "Yes! Each client receives a tailored report with actionable measures and improvement strategies."
+        },
+        {
+            "question": "What are your main services?",
+            "answer": "We specialize in environmental data analytics, air quality monitoring with sensors, and sustainability workshops for cities and companies."
+        },
+        {
+            "question": "How can I contact 90green?",
+            "answer": "📧 Email: info@90green.com\n📞 Phone: +49 176 41 989 200"
+        },
+        {
+            "question": "What are your office hours?",
+            "answer": "🕒 Monday to Friday, 9:00 – 17:00 CET"
+        }
+    ]
+
+def run_faq_assistant():
+     st.markdown("## 🤖 90green Assistant")
+     st.markdown("Welcome! Select a question below to learn more about our services.")
+
+     faq_list = load_knowledge_faq()
+     questions = [faq["question"] for faq in faq_list]
+
+     selected_question = st.selectbox("Choose a question:", questions)
+
+     if st.button("Get Answer"):
+        for faq in faq_list:
+            if faq["question"] == selected_question:
+                st.markdown(f"**🟢 Question:** {faq['question']}")
+                st.markdown(f"**💬 Answer:** {faq['answer']}")
+                break
+
+run_faq_assistant()
