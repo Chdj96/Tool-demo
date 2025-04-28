@@ -115,9 +115,19 @@ def get_unit(column):
 def create_gradient_plot(data_left, data_right=None, title="", param_left="", param_right=None, left_unit="",
                          right_unit=None, show_thresholds=False, apply_thresholds=None, thresholds=None,
                          start_time=None, end_time=None, rounding_base=30):
-    # Increase figure height and adjust DPI
-    fig, ax = plt.subplots(figsize=(12, 7), dpi=150)  # Larger canvas
-
+    # Create figure with adjusted size and layout
+    fig = plt.figure(figsize=(12, 8))
+    ax = fig.add_subplot(111)
+    
+    # Calculate dynamic spacing
+    plot_height = 6  # Main plot area height
+    legend_height = 2  # Space for legend
+    total_height = plot_height + legend_height
+    
+    # Set the figure size to accommodate both plot and legend
+    fig.set_size_inches(12, total_height)
+    fig.subplots_adjust(bottom=legend_height/total_height, top=0.95)
+    
     param_left_clean = param_left.replace("Left_", "S1_").replace("left_", "S1_")
     param_right_clean = param_right.replace("right_", "S2_").replace("Right_", "S2_") if param_right else None
 
@@ -144,54 +154,54 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
             color = 'orange' if "UBA" in label else 'red'
             ax.axhline(y=value, color=color, linestyle='--', linewidth=1.5, label=f"{label}: {value} µg/m³")
 
-        # Generate time range
-        time_range = pd.date_range(start=start_time, end=end_time, periods=len(data_left))
+    # Generate time range
+    time_range = pd.date_range(start=start_time, end=end_time, periods=len(data_left))
 
-        # Calculate regular hour intervals (every 3 hours)
-        hour_interval = 2
-        num_intervals = int(24 / hour_interval)
-        tick_indices = np.linspace(0, len(data_left) - 1, num_intervals).astype(int)
+    # Calculate regular hour intervals (every 3 hours)
+    hour_interval = 2
+    num_intervals = int(24 / hour_interval)
+    tick_indices = np.linspace(0, len(data_left) - 1, num_intervals).astype(int)
 
-        # Format time labels with date and regular hour intervals
-        time_labels = [time_range[i].strftime('%Y-%m-%d\n%H:00') for i in tick_indices]
+    # Format time labels with date and regular hour intervals
+    time_labels = [time_range[i].strftime('%Y-%m-%d\n%H:00') for i in tick_indices]
 
-        # Set the last label to 23:59
-        time_labels[-1] = time_range[-1].strftime('%Y-%m-%d\n23:59')
+    # Set the last label to 23:59
+    time_labels[-1] = time_range[-1].strftime('%Y-%m-%d\n23:59')
 
-        ax.set_xticks(tick_indices)
-        ax.set_xticklabels(time_labels, rotation=45, ha='right')
+    ax.set_xticks(tick_indices)
+    ax.set_xticklabels(time_labels, rotation=45, ha='right')
 
-        # Extend Y-axis above the maximum value
-        mean_value = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
-        ax.set_ylim(0, mean_value * 1.2)  # Extend 10% above max
-
-
+    # Dynamic Y-axis limits with buffer
+    y_max = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
+    buffer = max(y_max * 0.25, 5)  # Minimum 5-unit buffer
+    ax.set_ylim(0, y_max + buffer)
 
     ax.set_xlabel("Time")
     ax.set_ylabel(f"Value ({left_unit})" if not right_unit else f"Value ({left_unit}, {right_unit})")
     ax.set_title(title)
-    ax.legend()
-    fig.tight_layout()
-    st.pyplot(fig)
-
-     # Improved space management
-    plt.subplots_adjust(bottom=0.2, top=0.9, left=0.1, right=0.95)
     
-    # Dynamic Y-axis limits
-    y_max = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
-    buffer = max(y_max * 0.25, 5)  # Minimum 5-unit buffer
-    ax.set_ylim(0, y_max + buffer)
+    # Place legend below the plot with adequate space
+    ax.legend(bbox_to_anchor=(0.5, -0.3), loc='upper center', 
+              ncol=2, fancybox=True, shadow=True)
     
-    # Legend placement
-    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), 
-              fancybox=True, shadow=True, ncol=2)
-    
-    # Save with higher quality
+    # Save with tight layout
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=300, bbox_inches='tight')  # Critical fix
+    fig.savefig(buf, format="png", dpi=300, bbox_inches='tight')
     buf.seek(0)
     plt.close(fig)
-    return buf
+    
+    # Display in Streamlit
+    st.pyplot(fig, bbox_inches='tight')
+    
+    # Download button
+    st.download_button(
+        "📥 Download Plot",
+        data=buf,
+        file_name=f"{title}.png",
+        mime="image/png"
+    )
+
+# MAIN LOGIC [rest of your existing code...]
 
 
 
