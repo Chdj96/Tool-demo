@@ -115,7 +115,7 @@ def get_unit(column):
 def create_gradient_plot(data_left, data_right=None, title="", param_left="", param_right=None, left_unit="",
                          right_unit=None, show_thresholds=False, apply_thresholds=None, thresholds=None,
                          start_time=None, end_time=None, rounding_base=30):
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(12, 7))
 
     param_left_clean = param_left.replace("Left_", "S1_").replace("left_", "S1_")
     param_right_clean = param_right.replace("right_", "S2_").replace("Right_", "S2_") if param_right else None
@@ -174,7 +174,7 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     st.pyplot(fig)
 
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=300)
+    fig.savefig(buf, format="png", dpi=150)
     buf.seek(0)
     st.download_button("📥 Download Plot", data=buf, file_name=f"{title}.png", mime="image/png")
     plt.close(fig)
