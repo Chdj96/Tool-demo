@@ -111,22 +111,27 @@ def get_unit(column):
         if param.lower() in column.lower():
             return unit
     return "Value"
-
 def create_gradient_plot(data_left, data_right=None, title="", param_left="", param_right=None, left_unit="",
                          right_unit=None, show_thresholds=False, apply_thresholds=None, thresholds=None,
                          start_time=None, end_time=None, rounding_base=30):
-    # Create figure with adjusted size and layout
-    fig = plt.figure(figsize=(12, 8))
+    # Create figure with dynamic sizing
+    fig = plt.figure(figsize=(12, 8), dpi=150)
     ax = fig.add_subplot(111)
+    
+    # Calculate required space for legend (add more rows if many thresholds)
+    legend_rows = 1 + sum(1 for label in thresholds if show_thresholds.get(label, False))
+    legend_height = 0.08 * legend_rows  # Dynamic height based on legend items
+    
+    # Adjust subplot to leave space for legend
+    plt.subplots_adjust(bottom=legend_height + 0.15)  # Extra 15% padding
+
     
     # Calculate dynamic spacing
     plot_height = 6  # Main plot area height
     legend_height = 2  # Space for legend
     total_height = plot_height + legend_height
     
-    # Set the figure size to accommodate both plot and legend
-    fig.set_size_inches(12, total_height)
-    fig.subplots_adjust(bottom=legend_height/total_height, top=0.95)
+   
     
     param_left_clean = param_left.replace("Left_", "S1_").replace("left_", "S1_")
     param_right_clean = param_right.replace("right_", "S2_").replace("Right_", "S2_") if param_right else None
@@ -180,15 +185,26 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     ax.set_ylabel(f"Value ({left_unit})" if not right_unit else f"Value ({left_unit}, {right_unit})")
     ax.set_title(title)
     
-    # Place legend below the plot with adequate space
-    ax.legend(bbox_to_anchor=(0.5, -0.3), loc='upper center', 
-              ncol=2, fancybox=True, shadow=True)
+   # Improved legend placement
+    legend = ax.legend(
+        loc='upper center',
+        bbox_to_anchor=(0.5, -legend_height),  # Position below plot
+        ncol=2,
+        frameon=True,
+        fancybox=True,
+        shadow=True,
+        fontsize='small'
+    )
+    
+    # Dynamic Y-axis limits with extra buffer
+    y_max = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
+    buffer = max(y_max * 0.3, 10)  # 30% buffer or minimum 10 units
+    ax.set_ylim(0, y_max + buffer)
     
     # Save with tight layout
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=300, bbox_inches='tight')
+    fig.savefig(buf, format="png", dpi=300, bbox_inches='tight', pad_inches=0.5)
     buf.seek(0)
-    plt.close(fig)
     
     # Display in Streamlit
     st.pyplot(fig, bbox_inches='tight')
@@ -200,8 +216,8 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
         file_name=f"{title}.png",
         mime="image/png"
     )
-
-# MAIN LOGIC [rest of your existing code...]
+    
+    plt.close(fig)
 
 
 
