@@ -266,6 +266,7 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     ax.legend(title="Parameters", loc="best")
     ax.set_xlabel("Time")
     ax.set_ylabel(f"Value ({left_unit})" if not right_unit else f"Value ({left_unit}, {right_unit})")
+    ax.set_title(title)
 
     st.pyplot(fig)
 
