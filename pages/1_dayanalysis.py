@@ -115,7 +115,8 @@ def get_unit(column):
 def create_gradient_plot(data_left, data_right=None, title="", param_left="", param_right=None, left_unit="",
                          right_unit=None, show_thresholds=False, apply_thresholds=None, thresholds=None,
                          start_time=None, end_time=None, rounding_base=30):
-    fig, ax = plt.subplots(figsize=(12, 7))
+    # Increase figure height and adjust DPI
+    fig, ax = plt.subplots(figsize=(12, 7), dpi=150)  # Larger canvas
 
     param_left_clean = param_left.replace("Left_", "S1_").replace("left_", "S1_")
     param_right_clean = param_right.replace("right_", "S2_").replace("Right_", "S2_") if param_right else None
@@ -173,11 +174,24 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     fig.tight_layout()
     st.pyplot(fig)
 
+     # Improved space management
+    plt.subplots_adjust(bottom=0.2, top=0.9, left=0.1, right=0.95)
+    
+    # Dynamic Y-axis limits
+    y_max = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
+    buffer = max(y_max * 0.25, 5)  # Minimum 5-unit buffer
+    ax.set_ylim(0, y_max + buffer)
+    
+    # Legend placement
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), 
+              fancybox=True, shadow=True, ncol=2)
+    
+    # Save with higher quality
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=150)
+    fig.savefig(buf, format="png", dpi=300, bbox_inches='tight')  # Critical fix
     buf.seek(0)
-    st.download_button("📥 Download Plot", data=buf, file_name=f"{title}.png", mime="image/png")
     plt.close(fig)
+    return buf
 
 
 
