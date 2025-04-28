@@ -170,6 +170,7 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     ax.set_ylabel(f"Value ({left_unit})" if not right_unit else f"Value ({left_unit}, {right_unit})")
     ax.set_title(title)
     ax.legend()
+    fig.tight_layout()
     st.pyplot(fig)
 
     buf = io.BytesIO()
