@@ -316,7 +316,7 @@ if data_list:
 
         start_time_column = data['ISO8601']
 
-        # sidebar selections
+    # sidebar selections
         st.sidebar.header(f"Column Selection for File {idx+1}")
         all_columns = [col for col in data.columns if col != 'ISO8601']
 
@@ -325,7 +325,7 @@ if data_list:
 
         right_param = None
         if right_column_optional:
-            right_param = st.sidebar.selectbox(f"Select Right Column (File {idx+1})", all_columns, index=1, key=f"right_{idx}")
+            right_param = st.sidebar.selectbox(f"Select Right Column (File {idx+1})", all_columns, index=min(1, len(all_columns)-1), key=f"right_{idx}")
 
         left_unit = get_unit_for_column(left_param)
         right_unit = get_unit_for_column(right_param) if right_param else None
@@ -351,32 +351,36 @@ if data_list:
                     apply_key = f"apply_{label}_{idx}"
                     apply_thresholds[label] = st.checkbox("Apply", value=("WHO" in label), key=apply_key)
 
-        column_data_left = pd.to_numeric(data[left_param], errors='coerce')
+        # Process the column data
+        try:
+            column_data_left = pd.to_numeric(data[left_param], errors='coerce').fillna(0)
+            maxVal_left, AvgVal_left, minVal_left, segments = analyze_data(column_data_left, period)
+            
+            column_data_right = None
+            if right_param:
+                column_data_right = pd.to_numeric(data[right_param], errors="coerce").fillna(0)
+                maxVal_right, AvgVal_right, minVal_right, _ = analyze_data(column_data_right, period)
+            
+            start_time = start_time_column.min()
+            end_time = start_time_column.max()
+            
+            # FIXED: Better plot with improved parameters
+            st.subheader("📈 Average Values Plot")
+            create_gradient_plot(
+                data_left=AvgVal_left,
+                data_right=AvgVal_right if right_column_optional else None,
+                title=f"Average Values - {period} min intervals",
+                param_left=left_param,
+                param_right=right_param if right_column_optional else None,
+                left_unit=left_unit,
+                right_unit=right_unit,
+                thresholds=thresholds,
+                show_thresholds=show_thresholds,
+                apply_thresholds=apply_thresholds,
+                start_time=start_time,
+                end_time=end_time
+            )
 
-    maxVal_left, AvgVal_left, minVal_left, _ = analyze_data(column_data_left, period)
-
-    column_data_right = None
-    if right_param:
-        column_data_right = pd.to_numeric(data[right_param], errors="coerce").dropna()
-        maxVal_right, AvgVal_right, minVal_right, _ = analyze_data(column_data_right, period)
-
-    start_time = start_time_column.min()
-    end_time = start_time_column.max()
-
-    st.subheader("📈 Average Values Plot")
-    create_gradient_plot(
-        data_left=AvgVal_left,
-        data_right=AvgVal_right if right_column_optional else None,
-        title="Average Values",
-        param_left=f"S1. {left_param}",
-        param_right=f"S2. {right_param}" if right_param else None,
-        left_unit=left_unit,
-        right_unit=right_unit,
-        thresholds={k: v for k, v in thresholds.items() if show_thresholds.get(k)},
-        show_thresholds=any(show_thresholds.values()),
-        start_time=start_time,
-        end_time=end_time
-    )
 
     # Display stats
     st.subheader(f"📊 Statistics for {left_param}")
