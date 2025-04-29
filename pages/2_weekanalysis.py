@@ -211,7 +211,7 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
                          right_unit=None, show_thresholds=False, apply_thresholds=None, thresholds=None,
                          start_time=None, end_time=None, rounding_base=30):
     # Create figure with dynamic sizing
-    fig = plt.figure(figsize=(12, 8), dpi=150)
+    fig = plt.figure(figsize=(15, 12), dpi=150)
     ax = fig.add_subplot(111)
     
     # Calculate required space for legend (add more rows if many thresholds)
@@ -281,7 +281,7 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     
     # Save with tight layout
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=300, bbox_inches='tight', pad_inches=0.5)
+    fig.savefig(buf, format="png", dpi=300, pad_inches=0.5)
     buf.seek(0)
     
     # Display in Streamlit
