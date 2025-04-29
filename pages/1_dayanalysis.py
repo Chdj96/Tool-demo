@@ -123,7 +123,7 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     legend_height = 0.08 * legend_rows  # Dynamic height based on legend items
     
     # Adjust subplot to leave space for legend
-    plt.subplots_adjust(bottom=legend_height + 0.15)  # Extra 15% padding
+    plt.subplots_adjust(bottom=0.3) 
 
     
     # Calculate dynamic spacing
@@ -207,7 +207,7 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     buf.seek(0)
     
     # Display in Streamlit
-    st.pyplot(fig, bbox_inches='tight')
+    st.pyplot(fig)
     
     # Download button
     st.download_button(
