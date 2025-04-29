@@ -210,23 +210,24 @@ def round_time(dt, base=30):
 def create_gradient_plot(data_left, data_right=None, title="", param_left="", param_right=None, left_unit="",
                          right_unit=None, show_thresholds=False, apply_thresholds=None, thresholds=None,
                          start_time=None, end_time=None, rounding_base=30):
-    # Create figure with dynamic sizing
-    fig = plt.figure(figsize=(15, 12), dpi=150)
+    # Create figure with dynamic sizing and more height for legend
+    fig = plt.figure(figsize=(15, 8), dpi=150)
     ax = fig.add_subplot(111)
     
-    # Calculate required space for legend (add more rows if many thresholds)
-    legend_rows = 1 + sum(1 for label in thresholds if show_thresholds.get(label, False))
-    legend_height = 0.08 * legend_rows  # Dynamic height based on legend items
+    # Calculate legend space needed
+    legend_items = 1  # For the main line
+    if show_thresholds:
+        legend_items += sum(1 for label in thresholds if show_thresholds.get(label, False))
     
-    # Adjust subplot to leave space for legend
-    plt.subplots_adjust(bottom=0.3) 
+    # Adjust layout with more space at the bottom
+    plt.subplots_adjust(bottom=0.25 + (0.025 * legend_items))  # More dynamic space for legend
 
     param_left_clean = param_left.replace("Left_", "S1_").replace("left_", "S1_")
     param_right_clean = param_right.replace("right_", "S2_").replace("Right_", "S2_") if param_right else None
 
     x = np.arange(len(data_left))
     y = np.array(data_left)
-  active_thresholds = {k: v for k, v in thresholds.items() if apply_thresholds and apply_thresholds.get(k)}
+    active_thresholds = {k: v for k, v in thresholds.items() if apply_thresholds and apply_thresholds.get(k)}
     min_threshold = min(active_thresholds.values()) if active_thresholds else None
 
     prev_above = y[0] > min_threshold if min_threshold is not None else False
@@ -255,8 +256,7 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     ax.set_xticks(tick_indices)
     ax.set_xticklabels(time_labels, rotation=45, ha='right')
 
-    
-   # Dynamic Y-axis limits with buffer
+    # Dynamic Y-axis limits with buffer
     y_max = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
     buffer = max(y_max * 0.25, 5)  # Minimum 5-unit buffer
     ax.set_ylim(0, y_max + buffer)
@@ -265,26 +265,26 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     ax.set_ylabel(f"Value ({left_unit})" if not right_unit else f"Value ({left_unit}, {right_unit})")
     ax.set_title(title)
     
+    # Place legend outside the plot area with better positioning
     legend = ax.legend(
-    loc='upper right',  # or try 'upper left'
-    frameon=True,
-    fancybox=True,
-    shadow=True,
-    fontsize='small'
-)
-
+        loc='upper center',
+        bbox_to_anchor=(0.5, -0.15 - (0.02 * legend_items)),  # More dynamic positioning
+        ncol=2,
+        frameon=True,
+        fancybox=True,
+        shadow=True,
+        fontsize='small'
+    )
     
-    # Dynamic Y-axis limits with extra buffer
-    y_max = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
-    buffer = max(y_max * 0.3, 10)  # 30% buffer or minimum 10 units
-    ax.set_ylim(0, y_max + buffer)
+    # Apply tight layout before saving/displaying
+    plt.tight_layout()
     
-    # Save with tight layout
+    # Save with tight layout for download
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=300, pad_inches=0.5)
+    fig.savefig(buf, format="png", dpi=300, bbox_inches='tight')
     buf.seek(0)
     
-    # Display in Streamlit
+    # Display in Streamlit (without bbox_inches)
     st.pyplot(fig)
     
     # Download button
@@ -296,7 +296,6 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     )
     
     plt.close(fig)
-
 
 
 
