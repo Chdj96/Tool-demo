@@ -333,23 +333,7 @@ if data_list:
         pm_type = st.sidebar.selectbox(f"Select PM Type (File {idx+1})", ["PM10.0", "PM2.5"], key=f"pm_type_{idx}")
         thresholds = threshold_values_pm10 if pm_type == "PM10.0" else threshold_values_pm25
 
-        # FIXED: Better threshold control UI with clearer state
-        show_thresholds = {}
-        apply_thresholds = {}
-        
-        with st.sidebar.expander(f"PM Threshold Options (File {idx+1})", expanded=True):
-            st.info("'Show' = Display line on graph, 'Apply' = Color values above/below threshold")
-            
-            for label, value in thresholds.items():
-                col1, col2, col3 = st.columns([2, 1, 1])
-                with col1:
-                    st.markdown(f"**{label}** ({value} µg/m³)")
-                with col2:
-                    show_key = f"show_{label}_{idx}"
-                    show_thresholds[label] = st.checkbox("Show", value=True, key=show_key)
-                with col3:
-                    apply_key = f"apply_{label}_{idx}"
-                    apply_thresholds[label] = st.checkbox("Apply", value=("WHO" in label), key=apply_key)
+       
 
         # Process the column data
         try:
