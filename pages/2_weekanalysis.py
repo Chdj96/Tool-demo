@@ -1,3 +1,17 @@
+import streamlit as st
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import io
+import tempfile
+import folium
+from streamlit_folium import folium_static
+from PIL import Image
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+import time
+import requests
+
 # Streamlit setup
 st.set_page_config(page_title="Multi-Parameter Analysis Tool", layout="wide")
 st.title("🌡️ Multi-Parameter Analysis Tool")
@@ -192,13 +206,20 @@ def round_time(dt, base=30):
     new_minute = (dt.minute // base) * base
     return dt.replace(minute=new_minute, second=0, microsecond=0)
 
-# FIXED: Improved create_gradient_plot function
+
 def create_gradient_plot(data_left, data_right=None, title="", param_left="", param_right=None, left_unit="",
                          right_unit=None, show_thresholds=None, apply_thresholds=None, thresholds=None,
                          start_time=None, end_time=None, rounding_base=30):
     # Create figure with dynamic sizing
     fig = plt.figure(figsize=(12, 8), dpi=150)
     ax = fig.add_subplot(111)
+                             
+    # Calculate required space for legend (add more rows if many thresholds)
+    legend_rows = 1 + sum(1 for label in thresholds if show_thresholds.get(label, False))
+    legend_height = 0.08 * legend_rows  # Dynamic height based on legend items
+    
+    # Adjust subplot to leave space for legend
+    plt.subplots_adjust(bottom=0.3) 
 
     param_left_clean = param_left.replace("Left_", "S1_").replace("left_", "S1_")
     param_right_clean = param_right.replace("right_", "S2_").replace("Right_", "S2_") if param_right else None
@@ -257,51 +278,38 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
         ax.set_xticks(tick_indices)
         ax.set_xticklabels(time_labels, rotation=45, ha='right')
 
-    # FIXED: Y-axis scaling
-    # Calculate appropriate Y-axis limits to avoid tiny or excessive scales
-    if len(y) > 0:
-        y_max = max(np.max(y), np.max(data_right) if data_right is not None else 0)
-        y_min = min(np.min(y), np.min(data_right) if data_right is not None else 0)
-        
-        # Add a buffer for readability
-        y_range = y_max - y_min
-        buffer = max(y_range * 0.1, 1)  # At least 1 unit buffer
-        
-        # Set limits with buffer
-        y_bottom = max(0, y_min - buffer)  # Don't go below zero unless data does
-        y_top = y_max + buffer
-        
-        ax.set_ylim(y_bottom, y_top)
-    else:
-        # Fallback if no data
-        ax.set_ylim(0, 100)
+    
+   # Dynamic Y-axis limits with buffer
+    y_max = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
+    buffer = max(y_max * 0.25, 5)  # Minimum 5-unit buffer
+    ax.set_ylim(0, y_max + buffer)
 
-    # Labels and title
     ax.set_xlabel("Time")
-    if right_unit:
-        ax.set_ylabel(f"{param_left_clean} ({left_unit}) / {param_right_clean} ({right_unit})")
-    else:
-        ax.set_ylabel(f"{param_left_clean} ({left_unit})")
+    ax.set_ylabel(f"Value ({left_unit})" if not right_unit else f"Value ({left_unit}, {right_unit})")
     ax.set_title(title)
+    
+    legend = ax.legend(
+    loc='upper right',  # or try 'upper left'
+    frameon=True,
+    fancybox=True,
+    shadow=True,
+    fontsize='small'
+)
 
-    # Legend with better positioning
-    ax.legend(
-        loc='upper right',
-        frameon=True,
-        fancybox=True,
-        shadow=True,
-        fontsize='small'
-    )
-
+    
+    # Dynamic Y-axis limits with extra buffer
+    y_max = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
+    buffer = max(y_max * 0.3, 10)  # 30% buffer or minimum 10 units
+    ax.set_ylim(0, y_max + buffer)
+    
     # Save with tight layout
     buf = io.BytesIO()
-    fig.tight_layout()
     fig.savefig(buf, format="png", dpi=300, bbox_inches='tight', pad_inches=0.5)
     buf.seek(0)
-
+    
     # Display in Streamlit
     st.pyplot(fig)
-
+    
     # Download button
     st.download_button(
         "📥 Download Plot",
@@ -309,7 +317,7 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
         file_name=f"{title}.png",
         mime="image/png"
     )
-
+    
     plt.close(fig)
 
 
