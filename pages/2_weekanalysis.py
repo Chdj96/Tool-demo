@@ -208,12 +208,12 @@ def round_time(dt, base=30):
 
 
 def create_gradient_plot(data_left, data_right=None, title="", param_left="", param_right=None, left_unit="",
-                         right_unit=None, show_thresholds=None, apply_thresholds=None, thresholds=None,
+                         right_unit=None, show_thresholds=False, apply_thresholds=None, thresholds=None,
                          start_time=None, end_time=None, rounding_base=30):
     # Create figure with dynamic sizing
     fig = plt.figure(figsize=(12, 8), dpi=150)
     ax = fig.add_subplot(111)
-                             
+    
     # Calculate required space for legend (add more rows if many thresholds)
     legend_rows = 1 + sum(1 for label in thresholds if show_thresholds.get(label, False))
     legend_height = 0.08 * legend_rows  # Dynamic height based on legend items
@@ -226,48 +226,25 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
 
     x = np.arange(len(data_left))
     y = np.array(data_left)
-
-    # FIXED: Better handling of thresholds dictionary
-    active_thresholds = {}
-    if thresholds and apply_thresholds:
-        active_thresholds = {k: v for k, v in thresholds.items() if apply_thresholds.get(k, False)}
-    
+  active_thresholds = {k: v for k, v in thresholds.items() if apply_thresholds and apply_thresholds.get(k)}
     min_threshold = min(active_thresholds.values()) if active_thresholds else None
 
-    # Plot the left parameter data
-    if min_threshold is not None and active_thresholds:
-        # Color segments based on threshold
-        prev_above = y[0] > min_threshold
-        for i in range(len(x) - 1):
-            current_above = y[i + 1] > min_threshold
-            if prev_above == current_above:
-                color = 'red' if current_above else 'green'
-                ax.plot([x[i], x[i + 1]], [y[i], y[i + 1]], color=color, linewidth=2, 
-                        label=param_left_clean if i == 0 else "")
-            else:
-                mid_point = x[i] + (min_threshold - y[i]) / (y[i + 1] - y[i]) * (x[i+1] - x[i])
-                ax.plot([x[i], mid_point], [y[i], min_threshold], 
-                        color='green' if not prev_above else 'red', linewidth=2, 
-                        label=param_left_clean if i == 0 else "")
-                ax.plot([mid_point, x[i + 1]], [min_threshold, y[i + 1]], 
-                        color='red' if not prev_above else 'green', linewidth=2)
-            prev_above = current_above
-    else:
-        # Simple line plot without thresholds
-        ax.plot(x, y, color='blue', linewidth=2, label=param_left_clean)
+    prev_above = y[0] > min_threshold if min_threshold is not None else False
+    for i in range(len(x) - 1):
+        current_above = y[i + 1] > min_threshold if min_threshold is not None else False
+        if prev_above == current_above:
+            color = 'red' if current_above else 'green'
+            ax.plot([x[i], x[i + 1]], [y[i], y[i + 1]], color=color, linewidth=2, label=param_left_clean if i == 0 else "")
+        else:
+            x_inter = x[i] + (min_threshold - y[i]) / (y[i + 1] - y[i]) if min_threshold is not None else x[i]
+            ax.plot([x[i], x_inter], [y[i], min_threshold], color='green' if not prev_above else 'red', linewidth=2, label=param_left_clean if i == 0 else "")
+            ax.plot([x_inter, x[i + 1]], [min_threshold, y[i + 1]], color='red' if not prev_above else 'green', linewidth=2)
+        prev_above = current_above
 
-    # Plot the right parameter data if provided
-    if data_right is not None:
-        y_right = np.array(data_right)
-        ax.plot(x, y_right, color='purple', linestyle='--', linewidth=2, label=param_right_clean)
-
-    # Draw threshold lines
-    if thresholds and show_thresholds:
-        for label, value in thresholds.items():
-            if show_thresholds.get(label, False):
-                color = 'orange' if "UBA" in label else 'red'
-                ax.axhline(y=value, color=color, linestyle='--', linewidth=1.5, 
-                           label=f"{label}: {value} µg/m³")
+    for label, value in thresholds.items():
+        if show_thresholds and show_thresholds.get(label):
+            color = 'orange' if "UBA" in label else 'red'
+            ax.axhline(y=value, color=color, linestyle='--', linewidth=1.5, label=f"{label}: {value} µg/m³")
 
     num_segments = 15
     tick_indices = np.linspace(0, len(data_left) - 1, num_segments, dtype=int)
@@ -275,8 +252,8 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     time_labels = [round_time(t, base=rounding_base).strftime('%d.%m.%Y %H:%M') for t in time_range]
     time_labels[-1] = time_range[-1].strftime('%Y-%m-%d\n23:59')
 
-        ax.set_xticks(tick_indices)
-        ax.set_xticklabels(time_labels, rotation=45, ha='right')
+    ax.set_xticks(tick_indices)
+    ax.set_xticklabels(time_labels, rotation=45, ha='right')
 
     
    # Dynamic Y-axis limits with buffer
