@@ -209,8 +209,8 @@ def round_time(dt, base=30):
 
 
 def create_gradient_plot(data_left, data_right=None, title="", param_left="", param_right=None, left_unit="",
-                         right_unit=None, show_thresholds=False, thresholds=None, start_time=None, end_time=None,
-                         rounding_base=30):
+                         right_unit=None, show_thresholds=False, apply_thresholds=None, thresholds=None,
+                         start_time=None, end_time=None, rounding_base=30):
     fig, ax = plt.subplots(figsize=(10, 6))
 
     param_left_clean = param_left.replace("Left_", "S1_").replace("left_", "S1_")
@@ -219,48 +219,35 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     x = np.arange(len(data_left))
     y = np.array(data_left)
 
-    # Fix 1: Check for extreme values and normalize if needed
-    if np.max(y) > 1e10:  # If values are extremely large
-        st.warning(
-            f"⚠️ Extremely large values detected in {param_left_clean}. Values have been normalized for better visualization.")
+    # Handle extremely large values
+    if np.max(y) > 1e10:
         scaling_factor = 1e18
         y = y / scaling_factor
         ax.plot(x, y, label=f"{param_left_clean} ({left_unit}) ×10^-18", color="green", linewidth=2)
     else:
         ax.plot(x, y, label=f"{param_left_clean} ({left_unit})", color="green", linewidth=2)
 
-    who_threshold = thresholds.get("Daily Average (WHO Recommendation)",
-                                   None) if show_thresholds and thresholds else None
+    # Threshold coloring logic - only if apply_thresholds is True for any threshold
+    if apply_thresholds and any(apply_thresholds.values()):
+        # Find the minimum threshold that is being applied
+        min_threshold = min(value for label, value in thresholds.items()
+                            if apply_thresholds.get(label, False))
 
-    if who_threshold is not None:
-        # Fix 2: Normalize threshold value if needed
-        if np.max(y) > 1e10 and who_threshold < 1e10:
-            who_threshold = who_threshold / scaling_factor
-
-        prev_above = y[0] > who_threshold
+        prev_above = y[0] > min_threshold
         for i in range(len(x) - 1):
-            current_above = y[i + 1] > who_threshold
-            if prev_above and current_above:
-                color = 'red'
-            elif not prev_above and not current_above:
-                color = 'green'
+            current_above = y[i + 1] > min_threshold
+            if prev_above == current_above:
+                color = 'red' if current_above else 'green'
+                ax.plot([x[i], x[i + 1]], [y[i], y[i + 1]], color=color, linewidth=2)
             else:
-                # Handle division by zero or very small values
-                if abs(y[i + 1] - y[i]) < 1e-10:
-                    x_intersect = x[i]
-                else:
-                    x_intersect = x[i] + (who_threshold - y[i]) / (y[i + 1] - y[i])
-                ax.plot([x[i], x_intersect], [y[i], who_threshold],
+                x_inter = x[i] + (min_threshold - y[i]) / (y[i + 1] - y[i])
+                ax.plot([x[i], x_inter], [y[i], min_threshold],
                         color='green' if not prev_above else 'red', linewidth=2)
-                ax.plot([x_intersect, x[i + 1]], [who_threshold, y[i + 1]],
+                ax.plot([x_inter, x[i + 1]], [min_threshold, y[i + 1]],
                         color='red' if not prev_above else 'green', linewidth=2)
-                prev_above = current_above
-                continue
-            ax.plot([x[i], x[i + 1]], [y[i], y[i + 1]], color=color, linewidth=2)
             prev_above = current_above
 
     if data_right is not None:
-        # Fix 3: Scale right data if needed
         right_y = np.array(data_right)
         if np.max(y) > 1e10 and np.max(right_y) < 1e10:
             right_y = right_y / scaling_factor
@@ -269,22 +256,23 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
             ax.plot(x, right_y, label=f"{param_right_clean} ({right_unit})", linestyle="solid", color="blue")
         ax.fill_between(range(len(right_y)), right_y, alpha=0.1, color="skyblue")
 
+    # Show threshold lines if requested
     if show_thresholds and thresholds:
         for label, value in thresholds.items():
-            # Fix 4: Scale threshold values
-            display_value = value
-            if np.max(y) > 1e10 and value < 1e10:
-                value = value / scaling_factor
-                display_value = f"{display_value} ×10^-18"
+            if show_thresholds.get(label, False):
+                display_value = value
+                if np.max(y) > 1e10 and value < 1e10:
+                    value = value / scaling_factor
+                    display_value = f"{display_value} ×10^-18"
 
-            ax.axhline(y=value, color='yellow' if "UBA" in label else 'red', linestyle='--', linewidth=1.5,
-                       label=f"{label}: {display_value} µg/m³")
+                color = 'orange' if "UBA" in label else 'red'
+                ax.axhline(y=value, color=color, linestyle='--', linewidth=1.5,
+                           label=f"{label}: {display_value} µg/m³")
 
-    # Fix 5: Improve x-axis labels for better readability
+    # X-axis formatting
     num_segments = min(15, len(data_left))
     tick_indices = np.linspace(0, len(data_left) - 1, num_segments, dtype=int)
 
-    # Ensure time_range has the correct number of points
     if start_time and end_time:
         time_range = pd.date_range(start=start_time, end=end_time, periods=num_segments)
         time_labels = [round_time(t, base=rounding_base).strftime('%d.%m.%Y %H:%M') for t in time_range]
@@ -295,29 +283,19 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     ax.set_xticks(tick_indices)
     ax.set_xticklabels(time_labels, rotation=45, ha='right')
 
-    # Fix 6: Better y-axis limits
+    # Y-axis limits
     y_max = np.max(y)
     if data_right is not None:
         y_max = max(y_max, np.max(right_y))
-
-    # Add some padding to the top
     ax.set_ylim(0, y_max * 1.2)
 
-    # Fix 7: Improve labels
+    # Labels and title
     ax.set_title(title, fontsize=14, fontweight='bold')
     ax.legend(title="Parameters", loc="best", frameon=True, facecolor='white', edgecolor='gray')
     ax.set_xlabel("Time", fontsize=12)
+    ax.set_ylabel(f"Value ({left_unit})", fontsize=12)
 
-    if right_unit and right_unit != left_unit:
-        ax.set_ylabel(f"Value ({left_unit}, {right_unit})", fontsize=12)
-    else:
-        ax.set_ylabel(f"Value ({left_unit})", fontsize=12)
-
-
-
-    # Fix 9: Improve overall appearance
     plt.tight_layout()
-
     st.pyplot(fig)
 
     buf = io.BytesIO()
@@ -330,7 +308,6 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
         mime="image/png"
     )
     plt.close(fig)
-
 # MAIN LOGIC
 if data_list:
     for idx, data in enumerate(data_list):
@@ -398,8 +375,9 @@ if data_list:
         param_right=f"S2. {right_param}" if right_param else None,
         left_unit=left_unit,
         right_unit=right_unit,
-        thresholds={k: v for k, v in thresholds.items() if show_thresholds.get(k)},
-        show_thresholds=any(show_thresholds.values()),
+        thresholds=thresholds,
+        show_thresholds=show_thresholds,
+        apply_thresholds=apply_thresholds,  # This was missing
         start_time=start_time,
         end_time=end_time
     )
