@@ -126,11 +126,6 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     plt.subplots_adjust(bottom=0.3) 
 
     
-    # Calculate dynamic spacing
-    plot_height = 6  # Main plot area height
-    legend_height = 2  # Space for legend
-    total_height = plot_height + legend_height
-    
    
     
     param_left_clean = param_left.replace("Left_", "S1_").replace("left_", "S1_")
