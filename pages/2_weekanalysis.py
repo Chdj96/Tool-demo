@@ -380,6 +380,34 @@ if data_list:
                 start_time=start_time,
                 end_time=end_time
             )
+                # Display stats
+    st.subheader(f"📊 Statistics for {left_param}")
+    st.write(f"Maximum Value: {np.max(maxVal_left):.2f} {left_unit}")
+    st.write(f"Minimum Value: {np.min(minVal_left):.2f} {left_unit}")
+    st.write(f"Average Value: {np.mean(AvgVal_left):.2f} {left_unit}")
+
+    if right_param:
+        st.subheader(f"📊 Statistics for {right_param}")
+        st.write(f"Maximum Value: {np.max(maxVal_right):.2f} {right_unit}")
+        st.write(f"Minimum Value: {np.min(minVal_right):.2f} {right_unit}")
+        st.write(f"Average Value: {np.mean(AvgVal_right):.2f} {right_unit}")
+
+    # Exceedance Calculation
+    if st.sidebar.checkbox("Calculate PM Exceedance") and any(show_thresholds.values()):
+        st.subheader(f"📊 PM Exceedance for {left_param}")
+        for label, value in thresholds.items():
+            if show_thresholds.get(label):
+                percent = np.sum(AvgVal_left > value) / len(AvgVal_left) * 100
+                st.write(f"❌ **{label}** exceeded in **{percent:.2f}%** of the time.")
+
+        if right_param:
+            st.subheader(f"📊 PM Exceedance for {right_param}")
+            for label, value in thresholds.items():
+                if show_thresholds.get(label):
+                    percent = np.sum(AvgVal_right > value) / len(AvgVal_right) * 100
+                    st.write(f"❌ **{label}** exceeded in **{percent:.2f}%** of the time.")
+else:
+    st.warning("⚠️ No data loaded. Please upload a CSV file to begin.")
 
 
 
