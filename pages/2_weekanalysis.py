@@ -207,6 +207,14 @@ def round_time(dt, base=30):
     new_minute = (dt.minute // base) * base
     return dt.replace(minute=new_minute, second=0, microsecond=0)
 
+import streamlit as st
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import io
+
+# Simulated create_gradient_plot fix
+
 def create_gradient_plot(data_left, data_right=None, title="", param_left="", param_right=None, left_unit="",
                           right_unit=None, show_thresholds=False, thresholds=None, start_time=None, end_time=None,
                           rounding_base=30):
@@ -253,7 +261,7 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     num_segments = 15
     tick_indices = np.linspace(0, len(data_left) - 1, num_segments, dtype=int)
     time_range = pd.date_range(start=start_time, end=end_time, periods=num_segments)
-    time_labels = [round_time(t, base=rounding_base).strftime('%d.%m.%Y %H:%M') for t in time_range]
+    time_labels = [time.strftime('%d.%m.%Y %H:%M') for time in time_range]
     time_labels[-1] = time_range[-1].strftime('%Y-%m-%d\n23:59')
 
     ax.set_xticks(tick_indices)
@@ -263,15 +271,16 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     ax.set_ylim(0, mean_value * 1.2)
 
     ax.set_title(title)
-    ax.legend(title="Parameters", loc="best")
     ax.set_xlabel("Time")
     ax.set_ylabel(f"Value ({left_unit})" if not right_unit else f"Value ({left_unit}, {right_unit})")
-    ax.set_title(title)
+
+    # ✅ Updated legend placement: inside the plot
+    ax.legend(title="Parameters", loc="upper right", fontsize='small', fancybox=True, shadow=True, frameon=True)
 
     st.pyplot(fig)
 
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=300)
+    fig.savefig(buf, format="png", dpi=300, bbox_inches='tight', pad_inches=0.3)
     buf.seek(0)
     st.download_button(
         label="📥 Download Plot",
@@ -280,6 +289,7 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
         mime="image/png"
     )
     plt.close(fig)
+
 
 
 # MAIN LOGIC
