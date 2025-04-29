@@ -180,16 +180,14 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     ax.set_ylabel(f"Value ({left_unit})" if not right_unit else f"Value ({left_unit}, {right_unit})")
     ax.set_title(title)
     
-   # Improved legend placement
-    legend = ax.legend(
-        loc='upper center',
-        bbox_to_anchor=(0.5, -legend_height),  # Position below plot
-        ncol=2,
-        frameon=True,
-        fancybox=True,
-        shadow=True,
-        fontsize='small'
-    )
+  legend = ax.legend(
+    loc='upper right',  # or try 'upper left'
+    frameon=True,
+    fancybox=True,
+    shadow=True,
+    fontsize='small'
+)
+
     
     # Dynamic Y-axis limits with extra buffer
     y_max = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
