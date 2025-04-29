@@ -207,13 +207,7 @@ def round_time(dt, base=30):
     new_minute = (dt.minute // base) * base
     return dt.replace(minute=new_minute, second=0, microsecond=0)
 
-import streamlit as st
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import io
 
-# Simulated create_gradient_plot fix
 
 import streamlit as st
 import numpy as np
@@ -221,12 +215,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import io
 
-# Updated create_gradient_plot to prevent cut-off in display and image
+# Updated create_gradient_plot with full layout handling and legend
 
 def create_gradient_plot(data_left, data_right=None, title="", param_left="", param_right=None, left_unit="",
-                          right_unit=None, show_thresholds=False, thresholds=None, start_time=None, end_time=None,
-                          rounding_base=30):
-    fig, ax = plt.subplots(figsize=(12, 7), dpi=150)
+                         right_unit=None, show_thresholds=False, apply_thresholds=None, thresholds=None,
+                         start_time=None, end_time=None, rounding_base=30):
+    # Create figure with dynamic sizing
+    fig = plt.figure(figsize=(12, 8), dpi=150)
+    ax = fig.add_subplot(111)
 
     param_left_clean = param_left.replace("Left_", "S1_").replace("left_", "S1_")
     param_right_clean = param_right.replace("right_", "S2_").replace("Right_", "S2_") if param_right else None
@@ -234,74 +230,73 @@ def create_gradient_plot(data_left, data_right=None, title="", param_left="", pa
     x = np.arange(len(data_left))
     y = np.array(data_left)
 
-    ax.plot(x, y, label=f"{param_left_clean} ({left_unit})", color="green", linewidth=2)
+    active_thresholds = {k: v for k, v in thresholds.items() if apply_thresholds and apply_thresholds.get(k)}
+    min_threshold = min(active_thresholds.values()) if active_thresholds else None
 
-    who_threshold = thresholds.get("Daily Average (WHO Recommendation)", None) if show_thresholds and thresholds else None
+    prev_above = y[0] > min_threshold if min_threshold is not None else False
+    for i in range(len(x) - 1):
+        current_above = y[i + 1] > min_threshold if min_threshold is not None else False
+        if prev_above == current_above:
+            color = 'red' if current_above else 'green'
+            ax.plot([x[i], x[i + 1]], [y[i], y[i + 1]], color=color, linewidth=2, label=param_left_clean if i == 0 else "")
+        else:
+            x_inter = x[i] + (min_threshold - y[i]) / (y[i + 1] - y[i]) if min_threshold is not None else x[i]
+            ax.plot([x[i], x_inter], [y[i], min_threshold], color='green' if not prev_above else 'red', linewidth=2, label=param_left_clean if i == 0 else "")
+            ax.plot([x_inter, x[i + 1]], [min_threshold, y[i + 1]], color='red' if not prev_above else 'green', linewidth=2)
+        prev_above = current_above
 
-    if who_threshold is not None:
-        prev_above = y[0] > who_threshold
-        for i in range(len(x) - 1):
-            current_above = y[i + 1] > who_threshold
-            if prev_above and current_above:
-                color = 'red'
-            elif not prev_above and not current_above:
-                color = 'green'
-            else:
-                x_intersect = x[i] + (who_threshold - y[i]) / (y[i + 1] - y[i])
-                ax.plot([x[i], x_intersect], [y[i], who_threshold],
-                        color='green' if not prev_above else 'red', linewidth=2)
-                ax.plot([x_intersect, x[i + 1]], [who_threshold, y[i + 1]],
-                        color='red' if not prev_above else 'green', linewidth=2)
-                prev_above = current_above
-                continue
-            ax.plot([x[i], x[i + 1]], [y[i], y[i + 1]], color=color, linewidth=2)
-            prev_above = current_above
+    for label, value in thresholds.items():
+        if show_thresholds and show_thresholds.get(label):
+            color = 'orange' if "UBA" in label else 'red'
+            ax.axhline(y=value, color=color, linestyle='--', linewidth=1.5, label=f"{label}: {value} µg/m³")
 
-    if data_right is not None:
-        ax.plot(data_right, label=f"{param_right_clean} ({right_unit})", linestyle="solid", color="blue")
-        ax.fill_between(range(len(data_right)), data_right, alpha=0.1, color="skyblue")
+    time_range = pd.date_range(start=start_time, end=end_time, periods=len(data_left))
 
-    if show_thresholds and thresholds:
-        for label, value in thresholds.items():
-            ax.axhline(y=value, color='yellow' if "UBA" in label else 'red', linestyle='--', linewidth=1.5,
-                       label=f"{label}: {value} µg/m³")
+    hour_interval = 2
+    num_intervals = int(24 / hour_interval)
+    tick_indices = np.linspace(0, len(data_left) - 1, num_intervals).astype(int)
 
-    num_segments = 15
-    tick_indices = np.linspace(0, len(data_left) - 1, num_segments, dtype=int)
-    time_range = pd.date_range(start=start_time, end=end_time, periods=num_segments)
-    time_labels = [time.strftime('%d.%m.%Y %H:%M') for time in time_range]
+    time_labels = [time_range[i].strftime('%Y-%m-%d\n%H:00') for i in tick_indices]
     time_labels[-1] = time_range[-1].strftime('%Y-%m-%d\n23:59')
 
     ax.set_xticks(tick_indices)
     ax.set_xticklabels(time_labels, rotation=45, ha='right')
 
-    mean_value = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
-    ax.set_ylim(0, mean_value * 1.3)  # increased from 1.2 for better spacing
+    y_max = max(np.max(data_left), np.max(data_right) if data_right is not None else 0)
+    buffer = max(y_max * 0.3, 10)
+    ax.set_ylim(0, y_max + buffer)
 
-    ax.set_title(title)
     ax.set_xlabel("Time")
     ax.set_ylabel(f"Value ({left_unit})" if not right_unit else f"Value ({left_unit}, {right_unit})")
+    ax.set_title(title)
 
-    # Updated legend placement: top right inside
-    ax.legend(title="Parameters", loc="upper right", fontsize='small', fancybox=True, shadow=True, frameon=True)
+    ax.legend(
+        loc='upper right',
+        frameon=True,
+        fancybox=True,
+        shadow=True,
+        fontsize='small'
+    )
 
-    # Save with tight layout for image output
+    # Save with tight layout
     buf = io.BytesIO()
     fig.tight_layout()
-    fig.savefig(buf, format="png", dpi=300, bbox_inches='tight', pad_inches=0.4)
+    fig.savefig(buf, format="png", dpi=300, bbox_inches='tight', pad_inches=0.5)
     buf.seek(0)
 
     # Display in Streamlit
     st.pyplot(fig)
 
+    # Download button
     st.download_button(
-        label="📥 Download Plot",
+        "📥 Download Plot",
         data=buf,
-        file_name=f"{title.replace(' ', '_')}.png",
+        file_name=f"{title}.png",
         mime="image/png"
     )
 
     plt.close(fig)
+
 
 
 
