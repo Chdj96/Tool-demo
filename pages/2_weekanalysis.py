@@ -332,7 +332,23 @@ if data_list:
 
         pm_type = st.sidebar.selectbox(f"Select PM Type (File {idx+1})", ["PM10.0", "PM2.5"], key=f"pm_type_{idx}")
         thresholds = threshold_values_pm10 if pm_type == "PM10.0" else threshold_values_pm25
-
+ # FIXED: Better threshold control UI with clearer state
+        show_thresholds = {}
+        apply_thresholds = {}
+        
+        with st.sidebar.expander(f"PM Threshold Options (File {idx+1})", expanded=True):
+            st.info("'Show' = Display line on graph, 'Apply' = Color values above/below threshold")
+            
+            for label, value in thresholds.items():
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    st.markdown(f"**{label}** ({value} µg/m³)")
+                with col2:
+                    show_key = f"show_{label}_{idx}"
+                    show_thresholds[label] = st.checkbox("Show", value=True, key=show_key)
+                with col3:
+                    apply_key = f"apply_{label}_{idx}"
+                    apply_thresholds[label] = st.checkbox("Apply", value=("WHO" in label), key=apply_key)
        
 
         # Process the column data
@@ -366,75 +382,5 @@ if data_list:
             )
 
 
-    # Display stats
-    st.subheader(f"📊 Statistics for {left_param}")
-    st.write(f"Maximum Value: {np.max(maxVal_left):.2f} {left_unit}")
-    st.write(f"Minimum Value: {np.min(minVal_left):.2f} {left_unit}")
-    st.write(f"Average Value: {np.mean(AvgVal_left):.2f} {left_unit}")
 
-    if right_param:
-        st.subheader(f"📊 Statistics for {right_param}")
-        st.write(f"Maximum Value: {np.max(maxVal_right):.2f} {right_unit}")
-        st.write(f"Minimum Value: {np.min(minVal_right):.2f} {right_unit}")
-        st.write(f"Average Value: {np.mean(AvgVal_right):.2f} {right_unit}")
 
-    # Exceedance Calculation
-    if st.sidebar.checkbox("Calculate PM Exceedance") and any(show_thresholds.values()):
-        st.subheader(f"📊 PM Exceedance for {left_param}")
-        for label, value in thresholds.items():
-            if show_thresholds.get(label):
-                percent = np.sum(AvgVal_left > value) / len(AvgVal_left) * 100
-                st.write(f"❌ **{label}** exceeded in **{percent:.2f}%** of the time.")
-
-        if right_param:
-            st.subheader(f"📊 PM Exceedance for {right_param}")
-            for label, value in thresholds.items():
-                if show_thresholds.get(label):
-                    percent = np.sum(AvgVal_right > value) / len(AvgVal_right) * 100
-                    st.write(f"❌ **{label}** exceeded in **{percent:.2f}%** of the time.")
-else:
-    st.warning("⚠️ No data loaded. Please upload a CSV file to begin.")
-
-#ChatBot
-@st.cache_resource
-def load_knowledge_faq():
-     return [
-        {
-            "question": "How long does a typical air quality measurement take?",
-            "answer": "Measurement campaigns usually range from a single day up to many months depending on project scope."
-        },
-        {
-            "question": "Do you provide recommendations after the data analysis?",
-            "answer": "Yes! Each client receives a tailored report with actionable measures and improvement strategies."
-        },
-        {
-            "question": "What are your main services?",
-            "answer": "We specialize in environmental data analytics, air quality monitoring with sensors, and sustainability workshops for cities and companies."
-        },
-        {
-            "question": "How can I contact 90green?",
-            "answer": "📧 Email: info@90green.com\n📞 Phone: +49 176 41 989 200"
-        },
-        {
-            "question": "What are your office hours?",
-            "answer": "🕒 Monday to Friday, 9:00 – 17:00 CET"
-        }
-    ]
-
-def run_faq_assistant():
-     st.markdown("## 🤖 90green Assistant")
-     st.markdown("Welcome! Select a question below to learn more about our services.")
-
-     faq_list = load_knowledge_faq()
-     questions = [faq["question"] for faq in faq_list]
-
-     selected_question = st.selectbox("Choose a question:", questions)
-
-     if st.button("Get Answer"):
-        for faq in faq_list:
-            if faq["question"] == selected_question:
-                st.markdown(f"**🟢 Question:** {faq['question']}")
-                st.markdown(f"**💬 Answer:** {faq['answer']}")
-                break
-
-run_faq_assistant()
